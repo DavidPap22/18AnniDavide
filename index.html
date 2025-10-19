@@ -2,29 +2,31 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Invito 18 anni AR</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- Musica iniziale -->
-<audio id="musica" src="musica.mp3" loop></audio>
+<!-- Musica sempre attiva -->
+<audio id="musica" src="musica.mp3" loop autoplay></audio>
 
-<!-- Feed camera principale -->
-<video id="camera" autoplay playsinline muted></video>
+<!-- Schermata iniziale -->
+<div id="loading-screen">
+    <h1>Invito 18 anni</h1>
+    <p>Musica già in riproduzione</p>
+    <button id="startBtn">Avvia</button>
+    <div class="red-light"></div>
+</div>
 
-<!-- Contenitore AR -->
-<div id="ar-container">
-    <!-- QR code luminoso -->
+<!-- AR Container nascosto all’inizio -->
+<div id="ar-container" style="display:none;">
+    <video id="camera" autoplay playsinline muted></video>
     <img id="qr-code" src="invito.png" alt="Invito">
-
-    <!-- Video ologramma -->
-    <video id="videoAR" src="video-demo.mp4" type="video/mp4" autoplay style="display:none;"></video>
-
-    <!-- Icone finali ai lati del video -->
+    <video id="videoAR" src="video-demo.mp4" type="video/mp4" style="display:none;"></video>
     <img id="whatsapp-icon" src="whatsapp.png" alt="WhatsApp">
     <img id="replay-icon" src="replay.png" alt="Replay">
+    <canvas id="particles"></canvas>
 </div>
 
 <script src="script.js"></script>
