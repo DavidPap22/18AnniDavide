@@ -1,44 +1,76 @@
-body, html {
+html, body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #000;
+    background: black;
+    font-family: sans-serif;
 }
 
-#ar-container {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-#qr-code {
-    width: 200px;
-    height: 200px;
-    cursor: pointer;
-}
-
-#video-ar {
+/* Webcam come sfondo */
+#webcam {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
+    z-index: 0;
 }
 
+/* Contenitore AR sopra la webcam */
+#ar-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    perspective: 1000px;
+}
+
+/* QR code iniziale */
+#qr-code {
+    width: 200px;
+    height: 200px;
+    cursor: pointer;
+    transition: transform 0.5s;
+}
+
+/* Video AR come ologramma */
+#video-ar {
+    width: 300px;
+    height: auto;
+    display: none;
+    position: absolute;
+    transform: translateZ(50px); /* distanza ologramma */
+    box-shadow: 0 0 20px rgba(0,255,255,0.5);
+    border-radius: 10px;
+    z-index: 2;
+}
+
+/* Icone finali */
 #icon-container {
     position: absolute;
     bottom: 20px;
     width: 100%;
     display: flex;
-    justify-content: space-around;
+    justify-content: center;
+    gap: 50px;
+    z-index: 3;
 }
+
 #icon-container img {
-    width: 60px;
-    height: 60px;
+    width: 80px;
+    height: 80px;
     cursor: pointer;
+    transition: transform 0.2s;
+}
+
+#icon-container img:hover {
+    transform: scale(1.2);
 }
