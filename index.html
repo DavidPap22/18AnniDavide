@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invito 18 anni</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Ambiente AR / container -->
+    <div id="ar-container">
+        <!-- QR code in AR -->
+        <img id="qr-code" src="invito.png" alt="QR Invito">
+    </div>
+
+    <!-- Video nascosto inizialmente -->
+    <video id="video-ar" src="video-demo.mp4" type="video/mp4" style="display:none;" autoplay></video>
+
+    <!-- Icone finali -->
+    <div id="icon-container" style="display:none;">
+        <a href="https://wa.me/tuonumero" target="_blank">
+            <img src="whatsapp-icon.png" alt="WhatsApp">
+        </a>
+        <img id="reload-icon" src="reload-icon.png" alt="Reload">
+    </div>
+
+    <!-- Musica -->
+    <audio id="musica" src="musica.mp3" autoplay loop></audio>
+
+    <script src="script.js"></script>
+</body>
+</html>
