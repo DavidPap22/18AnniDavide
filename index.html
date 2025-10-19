@@ -7,23 +7,25 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Video della webcam come sfondo -->
-    <video id="webcam" autoplay playsinline muted></video>
 
-    <!-- Contenitore AR -->
-    <div id="ar-container">
-        <img id="qr-code" src="invito.png" alt="QR Invito">
-        <video id="video-ar" src="video-demo.mp4" type="video/mp4" style="display:none;" autoplay></video>
-    </div>
+<!-- Musica iniziale -->
+<audio id="musica" src="musica.mp3" loop></audio>
 
-    <!-- Icone finali -->
-    <div id="icon-container" style="display:none;">
-        <img id="whatsapp-icon" src="whatsapp.png" alt="WhatsApp">
-        <img id="replay-icon" src="replay.png" alt="Replay">
-    </div>
+<!-- Feed camera principale -->
+<video id="camera" autoplay playsinline muted></video>
 
-    <!-- Musica -->
-    <audio id="musica" src="musica.mp3" autoplay loop></audio>
+<!-- Contenitore AR -->
+<div id="ar-container">
+    <!-- QR code luminoso -->
+    <img id="qr-code" src="invito.png" alt="Invito">
+
+    <!-- Video ologramma -->
+    <video id="videoAR" src="video-demo.mp4" type="video/mp4" autoplay style="display:none;"></video>
+
+    <!-- Icone finali ai lati del video -->
+    <img id="whatsapp-icon" src="whatsapp.png" alt="WhatsApp">
+    <img id="replay-icon" src="replay.png" alt="Replay">
+</div>
 
 <script src="script.js"></script>
 </body>

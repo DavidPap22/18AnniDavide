@@ -5,11 +5,9 @@ html, body {
     height: 100%;
     overflow: hidden;
     background: black;
-    font-family: sans-serif;
 }
 
-/* Webcam come sfondo */
-#webcam {
+#camera {
     position: absolute;
     top: 0;
     left: 0;
@@ -19,7 +17,6 @@ html, body {
     z-index: 0;
 }
 
-/* Contenitore AR sopra la webcam */
 #ar-container {
     position: absolute;
     top: 0;
@@ -31,46 +28,47 @@ html, body {
     justify-content: center;
     align-items: center;
     perspective: 1000px;
+    flex-direction: row;
 }
 
-/* QR code iniziale */
+/* QR code luminoso */
 #qr-code {
     width: 200px;
     height: 200px;
     cursor: pointer;
-    transition: transform 0.5s;
+    animation: pulse 1.5s infinite;
+    z-index: 2;
 }
 
-/* Video AR come ologramma */
-#video-ar {
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Video ologramma con animazione flottante */
+#videoAR {
     width: 300px;
     height: auto;
     display: none;
-    position: absolute;
-    transform: translateZ(50px); /* distanza ologramma */
-    box-shadow: 0 0 20px rgba(0,255,255,0.5);
+    position: relative;
+    transform: translateZ(50px);
+    box-shadow: 0 0 30px rgba(0,255,255,0.5);
     border-radius: 10px;
     z-index: 2;
 }
 
-/* Icone finali */
-#icon-container {
+/* Icone finali ai lati del video */
+#whatsapp-icon, #replay-icon {
+    width: 80px;
+    height: 80px;
     position: absolute;
-    bottom: 20px;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    gap: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    display: none;
     z-index: 3;
 }
 
-#icon-container img {
-    width: 80px;
-    height: 80px;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-#icon-container img:hover {
-    transform: scale(1.2);
-}
+#whatsapp-icon { left: calc(50% - 220px); }
+#replay-icon { right: calc(50% - 220px); }

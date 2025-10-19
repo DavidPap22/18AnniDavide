@@ -1,41 +1,66 @@
+const camera = document.getElementById('camera');
 const qrCode = document.getElementById('qr-code');
-const videoAR = document.getElementById('video-ar');
-const iconContainer = document.getElementById('icon-container');
-const replayIcon = document.getElementById('replay-icon');
+const videoAR = document.getElementById('videoAR');
+const musica = document.getElementById('musica');
 const whatsappIcon = document.getElementById('whatsapp-icon');
-const webcam = document.getElementById('webcam');
+const replayIcon = document.getElementById('replay-icon');
 
-// Accesso alla webcam
-navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+// Accesso alla fotocamera principale del telefono
+navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } }, audio: false })
 .then(stream => {
-    webcam.srcObject = stream;
+    camera.srcObject = stream;
 })
 .catch(err => {
-    alert("Errore nell'accesso alla webcam: " + err);
+    alert("Errore accesso fotocamera principale: " + err);
 });
 
-// Al click sul QR code parte il video
+// Musica parte subito con QR code
+window.addEventListener('DOMContentLoaded', () => {
+    musica.volume = 1;
+    musica.play();
+});
+
+// Click sul QR code → parte video e abbassa musica
 qrCode.addEventListener('click', () => {
     qrCode.style.display = 'none';
     videoAR.style.display = 'block';
+    videoAR.volume = 1; // video pieno volume
+    musica.volume = 0.2; // abbassa musica
     videoAR.play();
 });
 
-// Alla fine del video appaiono le icone
+// Fine video → volume musica torna normale e compaiono icone
 videoAR.addEventListener('ended', () => {
-    iconContainer.style.display = 'flex';
+    musica.volume = 1;
+    whatsappIcon.style.display = 'block';
+    replayIcon.style.display = 'block';
 });
 
-// Funzione replay
+// Replay
 replayIcon.addEventListener('click', () => {
     videoAR.pause();
     videoAR.currentTime = 0;
-    videoAR.style.display = 'none';
-    iconContainer.style.display = 'none';
-    qrCode.style.display = 'block';
+    videoAR.style.display = 'block';
+    whatsappIcon.style.display = 'none';
+    replayIcon.style.display = 'none';
+    videoAR.play();
+    musica.volume = 0.2;
 });
 
-// WhatsApp aprirà il link
+// WhatsApp
 whatsappIcon.addEventListener('click', () => {
-    window.open('https://wa.me/tuonumero', '_blank');
+    window.open('https://whatsapp.com/channel/0029VbCDIZCJUM2SokRjrw2W', '_blank');
 });
+
+// Animazione video flottante tipo ologramma
+let floatAngle = 0;
+function floatVideo() {
+    if(videoAR.style.display === 'block') {
+        floatAngle += 0.01;
+        const y = Math.sin(floatAngle) * 5; // verticale
+        const rotate = Math.sin(floatAngle/2) * 2; // rotazione
+        videoAR.style.transform = `translateZ(50px) translateY(${y}px) rotateY(${rotate}deg)`;
+    }
+    requestAnimationFrame(floatVideo);
+}
+floatVideo();
