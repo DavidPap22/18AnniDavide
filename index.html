@@ -9,54 +9,47 @@
 </head>
 <body>
 
-<!-- FULL-PAGE RED START MENU -->
-<div id="startOverlay" role="dialog" aria-label="Menu di avvio">
+<div id="startOverlay">
   <div class="startContent">
     <h1>INVITO • 18 ANNI</h1>
     <p class="mini">Premi <strong>ENTRA</strong> per entrare nell'esperienza</p>
     <button id="startBtn" class="enterBtn">ENTRA</button>
-    <p class="note">Consenti l'accesso alla fotocamera (posteriore). Usa HTTPS (GitHub Pages consigliato).</p>
+    <p class="note">Consenti l'accesso alla fotocamera posteriore.</p>
   </div>
 </div>
 
-<!-- Hidden DOM video elements -->
 <video id="cameraStream" playsinline webkit-playsinline muted autoplay style="display:none"></video>
 <video id="holoVideo" playsinline webkit-playsinline preload="auto" style="display:none">
   <source src="video-demo.mp4" type="video/mp4">
 </video>
 
-<!-- A-Frame scene -->
 <a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
-  <!-- camera feed as sky -->
   <a-sky id="cameraSky" color="#000"></a-sky>
-
-  <!-- ambient red lights -->
   <a-entity light="type: ambient; intensity: 0.45; color: #ff2222"></a-entity>
   <a-entity id="pulseLight" light="type: point; intensity:0.6; color:#ff2222; distance:10" position="0 3 0"></a-entity>
 
-  <!-- particles/fumo -->
   <a-entity id="particles"></a-entity>
 
-  <!-- items -->
-  <a-image id="DonBosco" src="Don bosco.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Radio" src="Radio.png" class="item" look-at="#camera"></a-image>
-  <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Tromba" src="Tromba.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Catania" src="Catania.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Eduverse" src="Eduverse.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Fantacalcio" src="Fantacalcio.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Dj" src="Dj.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Ballerino" src="Ballerino.png" class="item" look-at="#camera"></a-image>
+  <!-- Items -->
+  <a-image id="DonBosco" src="Don bosco.png" class="item"></a-image>
+  <a-image id="Radio" src="Radio.png" class="item"></a-image>
+  <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="item"></a-image>
+  <a-image id="Tromba" src="Tromba.png" class="item"></a-image>
+  <a-image id="Catania" src="Catania.png" class="item"></a-image>
+  <a-image id="Eduverse" src="Eduverse.png" class="item"></a-image>
+  <a-image id="Fantacalcio" src="Fantacalcio.png" class="item"></a-image>
+  <a-image id="Dj" src="Dj.png" class="item"></a-image>
+  <a-image id="Ballerino" src="Ballerino.png" class="item"></a-image>
 
-  <!-- center flow: QR code and video -->
-  <a-image id="qrCode" src="invito.png" position="0 1.45 -5.8" scale="1.3 1.3 1" class="center clickable"></a-image>
-  <a-video id="demoVideo" src="#holoVideo" position="0 1.45 -5.8" visible="false"></a-video>
+  <!-- QR e video al centro -->
+  <a-image id="qrCode" src="invito.png" position="0 1.45 -3" scale="1.3 1.3 1" class="center clickable"></a-image>
+  <a-video id="demoVideo" src="#holoVideo" position="0 1.45 -3" visible="false"></a-video>
 
   <!-- logos -->
-  <a-image id="replayLogo" src="replay.png" position="-0.9 1.45 -5.8" visible="false" scale="1.2 1.2 1" class="center"></a-image>
-  <a-image id="whatsappLogo" src="whatsapp.png" position="0.9 1.45 -5.8" visible="false" scale="1.2 1.2 1" class="center"></a-image>
+  <a-image id="replayLogo" src="replay.png" position="-0.9 1.45 -3" visible="false" scale="1.2 1.2 1"></a-image>
+  <a-image id="whatsappLogo" src="whatsapp.png" position="0.9 1.45 -3" visible="false" scale="1.2 1.2 1"></a-image>
 
-  <!-- camera + cursor -->
+  <!-- Camera + cursor -->
   <a-entity id="cameraRig">
     <a-entity id="camera" camera look-controls position="0 1.6 0">
       <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
@@ -66,7 +59,7 @@
 
 <audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
 
-<div id="videoTapOverlay" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:99999;pointer-events:auto;">
+<div id="videoTapOverlay" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:99999;">
   <div style="background:rgba(0,0,0,0.6);padding:20px;border-radius:12px;color:#fff;text-align:center;">
     <p>Tocca il centro per avviare il video</p>
     <button id="tapToPlay" style="padding:12px 20px;border-radius:8px;border:none;background:#ff3333;color:#fff;font-weight:700;">Avvia Video</button>
