@@ -3,62 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>Invito AR — 360 Fix</title>
+  <title>Invito AR — Menù Rosso</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 </head>
 <body>
 
-<!-- START MENU -->
-<div id="startOverlay">
-  <div class="menu">
-    <h1>Invito AR — Prova Generale</h1>
-    <p>Premi <strong>Entra</strong> per avviare (usa la fotocamera posteriore)</p>
-    <button id="startBtn">Entra</button>
+<!-- FULL-PAGE RED START MENU -->
+<div id="startOverlay" role="dialog" aria-label="Menu di avvio">
+  <div class="startContent">
+    <h1>INVITO • 18 ANNI</h1>
+    <p class="mini">Premi <strong>ENTRA</strong> per entrare nell'esperienza</p>
+    <button id="startBtn" class="enterBtn">ENTRA</button>
+    <p class="note">Usa il telefono, consenti accesso alla fotocamera (posteriore)</p>
   </div>
 </div>
 
-<!-- A-Frame scene (NO AR.js) -->
+<!-- A-Frame scene (camera --> a-sky for true 360) -->
 <a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
-  <!-- Sky: verrà impostato dinamicamente al video della camera -->
+  <!-- sky (will be assigned camera stream) -->
   <a-sky id="cameraSky" color="#000"></a-sky>
 
-  <!-- Luci -->
-  <a-entity light="type: ambient; intensity: 0.5; color: #ff0000"></a-entity>
-  <a-entity light="type: directional; intensity: 0.8; color: #ff4444" position="0 5 0"></a-entity>
+  <!-- soft red ambient lights -->
+  <a-entity light="type: ambient; intensity: 0.45; color: #ff2222"></a-entity>
+  <a-entity light="type: directional; intensity: 0.7; color: #ff4b4b" position="0 5 0"></a-entity>
 
-  <!-- Particelle (pallini rossi) -->
+  <!-- small red particle cluster for hologram feel -->
   <a-entity id="particles"></a-entity>
 
-  <!-- Interactables (geometrie muovibili) -->
-  <a-box id="interactiveBox" class="interactable" position="0 1 -2" depth="0.5" height="0.5" width="0.5" color="#ff4b4b"></a-box>
-  <a-sphere id="interactiveSphere" class="interactable" position="1 1.2 -2" radius="0.3" color="#ff6666"></a-sphere>
+  <!-- ITEMS PNG (positions assigned by script) -->
+  <a-image id="DonBosco" src="Don bosco.png" class="clickable item" look-at="#camera"></a-image>
+  <a-image id="Radio" src="Radio.png" class="clickable item" look-at="#camera"></a-image>
+  <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="clickable item" look-at="#camera"></a-image>
+  <a-image id="Tromba" src="Tromba.png" class="clickable item" look-at="#camera"></a-image>
+  <a-image id="Catania" src="Catania.png" class="clickable item" look-at="#camera"></a-image>
+  <a-image id="Eduverse" src="Eduverse.png" class="clickable item" look-at="#camera"></a-image>
+  <a-image id="Fantacalcio" src="Fantacalcio.png" class="clickable item" look-at="#camera"></a-image>
+  <a-image id="Dj" src="Dj.png" class="clickable item" look-at="#camera"></a-image>
+  <a-image id="Ballerino" src="Ballerino.png" class="clickable item" look-at="#camera"></a-image>
 
-  <!-- PNG items (vuoi modificare posizioni manualmente? ora verranno posizionati automaticamente su sfera) -->
-  <a-image id="DonBosco" src="Don bosco.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Radio" src="Radio.png" class="item" look-at="#camera"></a-image>
-  <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Tromba" src="Tromba.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Catania" src="Catania.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Eduverse" src="Eduverse.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Fantacalcio" src="Fantacalcio.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Dj" src="Dj.png" class="item" look-at="#camera"></a-image>
-  <a-image id="Ballerino" src="Ballerino.png" class="item" look-at="#camera"></a-image>
-
-  <!-- QR, video e loghi centrali (posizione fissa centrale) -->
-  <a-image id="qrCode" src="invito.png" position="0 1.45 -2" scale="1.2 1.2 1" class="centerItem"></a-image>
-  <!-- a-video asset will be used; scale will be set dynamically by script to preserve aspect ratio -->
+  <!-- CENTER FLOW: QR --> VIDEO --> LOGOS -->
+  <a-image id="qrCode" src="invito.png" position="0 1.45 -2" scale="1.2 1.2 1" class="center clickable"></a-image>
   <a-video id="demoVideo" src="video-demo.webm" position="0 1.45 -2" visible="false"></a-video>
 
-  <!-- big logos (replace video area when video ends) -->
-  <a-image id="replayLogo" src="replay.png" position="-0.7 1.45 -2" visible="false" scale="1.1 1.1 1" class="centerItem"></a-image>
-  <a-image id="whatsappLogo" src="whatsapp.png" position="0.7 1.45 -2" visible="false" scale="1.1 1.1 1" class="centerItem"></a-image>
+  <a-image id="replayLogo" src="replay.png" position="-0.8 1.45 -2" visible="false" scale="1.1 1.1 1" class="center clickable"></a-image>
+  <a-image id="whatsappLogo" src="whatsapp.png" position="0.8 1.45 -2" visible="false" scale="1.1 1.1 1" class="center clickable"></a-image>
 
-  <!-- camera entity -->
-  <a-entity id="camera" camera look-controls position="0 1.6 0"></a-entity>
+  <!-- camera + cursor (rayOrigin: mouse makes taps reliable on mobile) -->
+  <a-entity id="cameraRig">
+    <a-entity id="camera" camera look-controls position="0 1.6 0">
+      <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
+    </a-entity>
+  </a-entity>
 </a-scene>
 
-<!-- BACKGROUND MUSIC -->
+<!-- background music -->
 <audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
 
 <script src="script.js"></script>
