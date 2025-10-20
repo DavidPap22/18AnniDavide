@@ -1,175 +1,117 @@
-/* script.js
-   - Avvia camera posteriore e imposta il video stream come 'a-sky' texture
-   - Gestisce Start, click sugli oggetti (link, audio, video olografico)
-   - Mostra icone laterali al termine del video olografico
-*/
+const SECRET_TOKEN = 'INVITO123';
 
-/* DOM */
-const startBtn = document.getElementById('startBtn');
-const startScreen = document.getElementById('startScreen');
-const bgMusic = document.getElementById('bgMusic');
-const audioFant = document.getElementById('audio-fantacalcio');
-const audioDj = document.getElementById('audio-dj');
-const holoVideo = document.getElementById('holoVideo');
-const cameraSky = document.getElementById('cameraSky');
-
-/* A-Frame entity getters */
-const qrEntity = () => document.querySelector('#qrObject');
-const holoEntity = () => document.querySelector('#holo');
-const whatsEntity = () => document.querySelector('#whatsIcon');
-const replayEntity = () => document.querySelector('#replayIcon');
-
-/* Utility: stop other audios except given one */
-function stopAllAudioExcept(exceptEl) {
-  [bgMusic, audioFant, audioDj, holoVideo].forEach(a => {
-    if (!a) return;
-    if (a !== exceptEl) {
-      try { a.pause(); a.currentTime = 0; } catch (e) {}
-    }
-  });
+function getQueryParam(name){
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
 }
 
-/* Start button handler */
-startBtn.addEventListener('click', async () => {
-  try { await bgMusic.play(); } catch (e) { console.warn('bgMusic play blocked', e); }
+function unlock() {
+  document.getElementById('protected-overlay').classList.add('hidden');
+  document.querySelector('a-scene').style.display = 'block';
+  bgMusic.play();
+}
 
-  startScreen.style.display = 'none';
+function lock() {
+  document.getElementById('protected-overlay').classList.remove('hidden');
+  document.querySelector('a-scene').style.display = 'none';
+}
 
-  try {
-    await startCameraStream();
-    initInteractions();
-  } catch (err) {
-    console.error('Errore camera:', err);
-    alert('Impossibile avviare la fotocamera posteriore: ' + err);
-  }
+window.addEventListener('DOMContentLoaded', ()=>{
+  const q = getQueryParam('token');
+  if(q && q === SECRET_TOKEN){ unlock(); } else { lock(); }
+
+  const form = document.getElementById('tokenForm');
+  form.addEventListener('submit', e=>{
+    e.preventDefault();
+    const v = document.getElementById('token').value.trim();
+    if(v === SECRET_TOKEN) unlock();
+    else alert('Codice errato');
+  });
+
+  initARInteractions();
+  initDebugPanel();
 });
 
-/* Start camera with facingMode environment, fallback if needed */
-async function startCameraStream(){
-  let stream = null;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } }, audio: false });
-  } catch (e1) {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-    } catch (e2) {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+const bgMusic = document.getElementById('bgMusic');
+
+function initARInteractions() {
+  const qr = document.getElementById('qrCode');
+  const video = document.getElementById('demoVideo');
+  const replayLogo = document.getElementById('replayLogo');
+  const whatsappLogo = document.getElementById('whatsappLogo');
+
+  qr.addEventListener('click', ()=>{
+    qr.setAttribute('visible', 'false');
+    video.setAttribute('visible', 'true');
+    video.play();
+    bgMusic.volume = 0.2;
+  });
+
+  video.addEventListener('ended', ()=>{
+    video.setAttribute('visible','false');
+    replayLogo.setAttribute('visible','true');
+    whatsappLogo.setAttribute('visible','true');
+    bgMusic.volume = 1.0;
+  });
+
+  replayLogo.addEventListener('click', ()=>{
+    replayLogo.setAttribute('visible','false');
+    whatsappLogo.setAttribute('visible','false');
+    video.setAttribute('visible','true');
+    video.play();
+    bgMusic.volume = 0.2;
+  });
+
+  whatsappLogo.addEventListener('click', ()=>{
+    window.open('https://wa.me/1234567890','_blank');
+  });
+
+  document.querySelectorAll('.clickable').forEach(el=>{
+    if(!['qrCode','demoVideo','replayLogo','whatsappLogo'].includes(el.id)){
+      el.addEventListener('click', ()=>{
+        bgMusic.pause();
+        if(el.id === 'Radio') new Audio('radio.mp3').play();
+        else if(el.id === 'Fantacalcio') new Audio('fantacalcio.mp3').play();
+        else if(el.id === 'Dj') new Audio('dj.mp3').play();
+        else if(el.id === 'Tromba') window.open('https://youtu.be/AMK10N6wwHM','_blank');
+        else if(el.id === 'Ballerino') window.open('https://youtu.be/JS_BY3LRBqw','_blank');
+        else window.open('https://instagram.com','_blank');
+        setTimeout(()=> bgMusic.play(), 5000);
+      });
     }
-  }
-
-  // create hidden video element for sky
-  const camVid = document.createElement('video');
-  camVid.setAttribute('id', 'cameraStream');
-  camVid.setAttribute('autoplay', 'true');
-  camVid.setAttribute('playsinline', '');
-  camVid.muted = true;
-  camVid.srcObject = stream;
-  document.body.appendChild(camVid);
-
-  try { await camVid.play(); } catch (e) { console.warn('cameraStream play blocked', e); }
-
-  // assign to a-sky
-  cameraSky.setAttribute('src', '#cameraStream');
-  cameraSky.setAttribute('rotation', '0 -90 0');
-}
-
-/* Setup interactions */
-function initInteractions() {
-  const don = document.querySelector('#donObj');
-  const radio = document.querySelector('#radioObj');
-  const etna = document.querySelector('#etnaObj');
-  const tromba = document.querySelector('#trombaObj');
-  const catania = document.querySelector('#cataniaObj');
-  const edu = document.querySelector('#eduObj');
-  const fant = document.querySelector('#fantObj');
-  const dj = document.querySelector('#djObj');
-  const baller = document.querySelector('#ballerinoObj');
-
-  // helper to bind click + touchstart for A-Frame entities
-  function addTap(el, fn) {
-    if (!el) return;
-    el.addEventListener('click', fn);
-    el.addEventListener('touchstart', function(ev){ ev.preventDefault(); fn(ev); }, {passive:false});
-  }
-
-  // QR: attiva ologramma (video interno), abbassa bgMusic
-  addTap(qrEntity(), () => {
-    try { bgMusic.volume = 0.2; } catch(e){}
-
-    const holo = holoEntity();
-    holo.setAttribute('visible', 'true');
-
-    try {
-      stopAllAudioExcept(holoVideo);
-      holoVideo.currentTime = 0;
-      holoVideo.play().catch(e => console.warn('holoVideo play err', e));
-    } catch (e) { console.warn(e); }
-
-    holoVideo.onended = () => {
-      try { bgMusic.volume = 1.0; } catch(e){}
-      const whats = whatsEntity();
-      const replay = replayEntity();
-      if (whats) whats.setAttribute('visible', 'true');
-      if (replay) replay.setAttribute('visible', 'true');
-    };
-  });
-
-  // links
-  addTap(don, () => window.open('https://www.instagram.com/giovani_animatori_trecastagni/', '_blank'));
-  addTap(radio, () => window.open('https://open.spotify.com/intl-it/track/3nhAgjyrfUUCNDMZHx6LCa', '_blank'));
-  addTap(etna, () => window.open('https://www.instagram.com/etnaensemble/', '_blank'));
-  addTap(tromba, () => window.open('https://youtu.be/AMK10N6wwHM?si=RZspAJNRKQqQxXOl', '_blank'));
-  addTap(catania, () => window.open('https://www.instagram.com/officialcataniafc/', '_blank'));
-  addTap(edu, () => window.open('https://www.instagram.com/eduverse___/', '_blank'));
-  addTap(baller, () => window.open('https://youtu.be/JS_BY3LRBqw?si=v-Zp7WYvStp2vWFw', '_blank'));
-
-  // internal mp3 players
-  addTap(fant, () => {
-    stopAllAudioExcept(audioFant);
-    audioFant.play().catch(e => console.warn('fant play error', e));
-  });
-  addTap(dj, () => {
-    stopAllAudioExcept(audioDj);
-    audioDj.play().catch(e => console.warn('dj play error', e));
-  });
-
-  // lower bgMusic while internal audio/holo play
-  [audioFant, audioDj, holoVideo].forEach(el => {
-    if (!el) return;
-    el.addEventListener('play', () => { try { bgMusic.volume = 0.2; } catch(e){} });
-    el.addEventListener('pause', () => { try { bgMusic.volume = 1.0; } catch(e){} });
-    el.addEventListener('ended', () => { try { bgMusic.volume = 1.0; } catch(e){} });
-  });
-
-  // WhatsApp and replay icons (showed after holo ends)
-  const whats = whatsEntity();
-  const replay = replayEntity();
-  if (whats) {
-    addTap(whats, () => window.open('https://wa.me/tuonumero', '_blank'));
-  }
-  if (replay) {
-    addTap(replay, () => {
-      if (whats) whats.setAttribute('visible', 'false');
-      replay.setAttribute('visible', 'false');
-      holoVideo.currentTime = 0;
-      stopAllAudioExcept(holoVideo);
-      holoVideo.play().catch(e => console.warn('replay play error', e));
-      try { bgMusic.volume = 0.2; } catch(e){}
-    });
-  }
-
-  // small tap animation feedback (scale)
-  const clickables = document.querySelectorAll('.interactive');
-  clickables.forEach(c => {
-    c.addEventListener('click', () => {
-      c.setAttribute('scale', '1.08 1.08 1.08');
-      setTimeout(() => c.setAttribute('scale', '1 1 1'), 180);
-    });
   });
 }
 
-/* NOTES:
- - Serve HTTPS per getUserMedia su molti browser.
- - iOS Safari può comportarsi diversamente: testare su Safari e Chrome Android.
- - Se alcuni dispositivi non supportano facingMode exact, fallback prova a usare environment o qualsiasi camera.
-*/
+// -------------------- DEBUG PANEL --------------------
+function initDebugPanel() {
+  const slidersDiv = document.getElementById('sliders');
+  const elements = document.querySelectorAll('a-image.clickable');
+  elements.forEach(el=>{
+    const container = document.createElement('div');
+    container.innerHTML = `<strong>${el.id}</strong><br>
+      X:<input type="range" min="-5" max="5" step="0.1" value="${el.getAttribute('position').x}" data-prop="x"><br>
+      Y:<input type="range" min="0" max="5" step="0.1" value="${el.getAttribute('position').y}" data-prop="y"><br>
+      Z:<input type="range" min="-5" max="5" step="0.1" value="${el.getAttribute('position').z}" data-prop="z"><br>
+      RotY:<input type="range" min="0" max="360" step="1" value="${el.getAttribute('rotation').y}" data-prop="yrot"><br><br>`;
+    slidersDiv.appendChild(container);
+
+    container.querySelectorAll('input').forEach(input=>{
+      input.addEventListener('input', e=>{
+        const val = parseFloat(input.value);
+        const prop = input.dataset.prop;
+        const pos = el.getAttribute('position');
+        const rot = el.getAttribute('rotation');
+        if(prop==='x') pos.x=val;
+        if(prop==='y') pos.y=val;
+        if(prop==='z') pos.z=val;
+        if(prop==='yrot') rot.y=val;
+        el.setAttribute('position', pos);
+        el.setAttribute('rotation', rot);
+      });
+    });
+  });
+
+  document.getElementById('closeDebug').addEventListener('click', ()=>{
+    document.getElementById('debugPanel').style.display = 'none';
+  });
+}

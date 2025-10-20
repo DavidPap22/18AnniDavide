@@ -1,66 +1,13 @@
-/* Basic layout + red theme */
-html, body {
-  height: 100%;
-  margin: 0;
-  background: #000;
-  color: #fff;
-  font-family: Arial, Helvetica, sans-serif;
+body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
+#protected-overlay {
+  position: fixed; inset: 0; display: flex; justify-content: center; align-items: center;
+  background: rgba(0,0,0,0.7); z-index: 50;
 }
-
-/* START SCREEN */
-#startScreen {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  background: linear-gradient(180deg, rgba(10,0,0,0.95), rgba(0,0,0,0.6));
-  text-align: center;
-  padding: 20px;
+#protected-overlay form { background: #fff; padding: 20px; border-radius: 10px; }
+.clickable { cursor: pointer; }
+#debugPanel {
+  position: fixed; top: 10px; right: 10px; background: rgba(255,0,0,0.8); padding: 10px;
+  border-radius: 8px; color: #fff; max-width: 250px; z-index: 60;
 }
-#startScreen h1 {
-  color: #ff3333;
-  margin: 0 0 8px;
-  font-size: 2.0rem;
-}
-#startScreen .sub {
-  color: #ffbdbd;
-  margin-bottom: 18px;
-}
-#startBtn {
-  background: #ff2b2b;
-  color: #fff;
-  border: none;
-  padding: 14px 30px;
-  font-size: 1.1rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(255, 40, 40, 0.25);
-  cursor: pointer;
-}
-.hint { color: #ffbdbd; margin-top: 12px; font-size: 0.9rem; }
-
-/* red-light ambient on start */
-.red-light {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(circle at 50% 30%, rgba(255,50,50,0.20), rgba(0,0,0,0) 45%);
-  animation: subtlePulse 3s infinite ease-in-out;
-  mix-blend-mode: screen;
-}
-@keyframes subtlePulse {
-  0% { opacity: 0.9; }
-  50% { opacity: 0.7; transform: scale(1.02); }
-  100% { opacity: 0.9; }
-}
-
-/* Ensure A-Frame scene fills viewport */
-a-scene { height: 100vh; width: 100vw; display: block; }
-
-/* Small screens adjustments */
-@media (max-width: 420px) {
-  #startScreen h1 { font-size: 1.6rem; }
-  #startBtn { padding: 12px 22px; font-size: 1rem; }
-}
+#debugPanel h3 { margin: 0 0 5px 0; font-size: 14px; }
+#debugPanel button { margin-top: 5px; width: 100%; }

@@ -1,152 +1,62 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-  <title>Invito 18 • AR 360</title>
-
-  <!-- A-Frame -->
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Invito 18 anni - AR Demo</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 </head>
 <body>
 
-  <!-- Audio di sottofondo (parte su gesture "Avvia") -->
-  <audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
+<!-- Overlay codice invito -->
+<div id="protected-overlay" class="hidden">
+  <form id="tokenForm">
+    <label for="token">Inserisci codice invito</label>
+    <input id="token" name="token" autocomplete="off">
+    <button type="submit">Entra</button>
+  </form>
+  <p class="hint">Oppure apri il link con il parametro <code>?token=TUO_TOKEN</code></p>
+</div>
 
-  <!-- Audio interni -->
-  <audio id="audio-fantacalcio" src="fantacalcio.mp3" preload="auto"></audio>
-  <audio id="audio-dj" src="dj.mp3" preload="auto"></audio>
+<!-- Contenuto AR -->
+<a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
+  <!-- Ambiente luminoso -->
+  <a-entity light="type: ambient; intensity: 0.6; color: #ff0000"></a-entity>
+  <a-entity light="type: directional; intensity: 0.8; color: #ff0000" position="0 5 0"></a-entity>
 
-  <!-- Schermata iniziale con Start (necessaria per sbloccare autoplay audio su mobile) -->
-  <div id="startScreen">
-    <h1>Invito 18 • AR 360</h1>
-    <p class="sub">Musica pronta. Premi <strong>Avvia</strong> per entrare nell'esperienza.</p>
-    <button id="startBtn">Avvia</button>
-    <div class="hint">Usare su smartphone (fotocamera posteriore). Ruota il telefono per esplorare.</div>
-    <div class="red-light"></div>
-  </div>
+  <!-- Elementi PNG interattivi -->
+  <a-image id="DonBosco" src="Don bosco.png" position="0 1 -2" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
+  <a-image id="Radio" src="Radio.png" position="2 1 -1" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
+  <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" position="-2 1 -1" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
+  <a-image id="Tromba" src="Tromba.png" position="0 1 2" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
+  <a-image id="Catania" src="Catania.png" position="3 1 0" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
+  <a-image id="Eduverse" src="Eduverse.png" position="-3 1 0" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
+  <a-image id="Fantacalcio" src="Fantacalcio.png" position="1 1 3" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
+  <a-image id="Dj" src="Dj.png" position="-1 1 3" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
+  <a-image id="Ballerino" src="Ballerino.png" position="0 1 -3" rotation="0 0 0" width="1" height="1" class="clickable"></a-image>
 
-  <!-- SCENA A-FRAME -->
-  <a-scene id="scene" vr-mode-ui="enabled: false" embedded renderer="colorManagement: true">
-    <a-assets>
-      <!-- immagini PNG -->
-      <img id="invitoImg" src="invito.png">
-      <img id="donbosco" src="Don bosco.png">
-      <img id="radio" src="Radio.png">
-      <img id="etna" src="EtnaEnsemble.png">
-      <img id="tromba" src="Tromba.png">
-      <img id="catania" src="Catania.png">
-      <img id="eduverse" src="Eduverse.png">
-      <img id="fantacalcioImg" src="Fantacalcio.png">
-      <img id="djImg" src="Dj.png">
-      <img id="ballerino" src="Ballerino.png">
-      <img id="whatsImg" src="whatsapp.png">
-      <img id="replayImg" src="replay.png">
+  <!-- QR Code e video -->
+  <a-image id="qrCode" src="invito.png" position="0 1.2 -1.5" width="1.2" height="1.2" class="clickable"></a-image>
+  <a-video id="demoVideo" src="video-demo.webm" position="0 1.2 -1.5" width="2" height="1.2" visible="false" rotation="0 0 0"></a-video>
 
-      <!-- video ologramma (non autoplay fino al click) -->
-      <video id="holoVideo" src="video-demo.mp4" preload="metadata" webkit-playsinline playsinline crossorigin="anonymous"></video>
-    </a-assets>
+  <!-- Loghi finali -->
+  <a-image id="replayLogo" src="replay.png" position="-1.2 1.2 -1.5" width="1.2" height="1.2" visible="false" class="clickable"></a-image>
+  <a-image id="whatsappLogo" src="whatsapp.png" position="1.2 1.2 -1.5" width="1.2" height="1.2" visible="false" class="clickable"></a-image>
 
-    <!-- Sky che useremo come sfondo con il video della camera -->
-    <a-sky id="cameraSky" color="#000"></a-sky>
+  <a-entity camera></a-entity>
+</a-scene>
 
-    <!-- Camera rig: aggiungo cursor rayOrigin:mouse per touch su mobile -->
-    <a-entity id="cameraRig">
-      <a-entity id="camera" camera look-controls position="0 1.6 0">
-        <!-- cursor che utilizza il mouse/touch ray (utile su mobile) -->
-        <a-entity cursor="rayOrigin: mouse" raycaster="objects: .interactive" position="0 0 -1"></a-entity>
-      </a-entity>
-    </a-entity>
+<!-- Pannello debug -->
+<div id="debugPanel">
+  <h3>Debug Posizione/Rotazione</h3>
+  <div id="sliders"></div>
+  <button id="closeDebug">Chiudi Pannello</button>
+</div>
 
-    <!-- Oggetti posizionati intorno all'utente (360) con animazioni diverse -->
-    <!-- QR code frontale (billboard: look-at camera) -->
-    <a-image id="qrObject" class="interactive" src="#invitoImg"
-             position="0 1.4 -2.5" width="1.2" height="1.2"
-             material="shader:flat; emissive: #ff4444; emissiveIntensity: 0.4"
-             look-at="#camera"
-             animation="property: scale; dir: alternate; dur:1400; to:1.12 1.12 1.12; loop:true"></a-image>
+<!-- Audio -->
+<audio id="bgMusic" src="musica.mp3" loop></audio>
 
-    <!-- Don Bosco: rotazione lenta -->
-    <a-image id="donObj" class="interactive" src="#donbosco"
-             position="2.0 1.4 -1.2" width="1.0" height="1.0"
-             material="shader:flat; emissive: #ff7777; emissiveIntensity:0.15"
-             look-at="#camera"
-             animation="property: rotation; to:0 360 0; dur:12000; loop:true; easing:linear"></a-image>
-
-    <!-- Radio: pulsazione rossa più intensa -->
-    <a-image id="radioObj" class="interactive" src="#radio"
-             position="2.0 1.4 1.2" width="1.0" height="1.0"
-             material="shader:flat; emissive: #ff2b2b; emissiveIntensity:0.35"
-             look-at="#camera"
-             animation="property: scale; dir: alternate; dur:1000; to:1.15 1.15 1.15; loop:true"></a-image>
-
-    <!-- Etna Ensemble: lieve oscillazione verticale -->
-    <a-image id="etnaObj" class="interactive" src="#etna"
-             position="0 1.4 3.0" width="1.0" height="1.0"
-             material="shader:flat; emissive: #ff6b6b; emissiveIntensity:0.12"
-             look-at="#camera"
-             animation="property: position; dir: alternate; dur:2400; to:0 1.6 3.0; loop:true"></a-image>
-
-    <!-- Tromba: glow e rotate -->
-    <a-image id="trombaObj" class="interactive" src="#tromba"
-             position="-2.0 1.4 1.2" width="1.0" height="1.0"
-             material="shader:flat; emissive: #ff9b9b; emissiveIntensity:0.18"
-             look-at="#camera"
-             animation="property: rotation; to:0 -360 0; dur:16000; loop:true; easing:linear"></a-image>
-
-    <!-- Catania: pulsazione lenta -->
-    <a-image id="cataniaObj" class="interactive" src="#catania"
-             position="-2.0 1.4 -1.2" width="1.0" height="1.0"
-             material="shader:flat; emissive: #ff4b4b; emissiveIntensity:0.14"
-             look-at="#camera"
-             animation="property: scale; dir: alternate; dur:2000; to:1.08 1.08 1.08; loop:true"></a-image>
-
-    <!-- Eduverse: leggero float alto -->
-    <a-image id="eduObj" class="interactive" src="#eduverse"
-             position="0 3.0 -0.5" width="1.0" height="1.0"
-             material="shader:flat; emissive: #ff5b5b; emissiveIntensity:0.2"
-             look-at="#camera"
-             animation="property: position; dir: alternate; dur:3000; to:0 3.15 -0.5; loop:true"></a-image>
-
-    <!-- Fantacalcio (play mp3) -->
-    <a-image id="fantObj" class="interactive" src="#fantacalcioImg"
-             position="-0.9 1.0 -2.2" width="1.0" height="1.0"
-             material="shader:flat; emissive: #ff8b8b; emissiveIntensity:0.18"
-             look-at="#camera"
-             animation="property: rotation; to:0 6 0; dur:3000; loop:true"></a-image>
-
-    <!-- DJ (play mp3) -->
-    <a-image id="djObj" class="interactive" src="#djImg"
-             position="0.9 1.0 -2.2" width="1.0" height="1.0"
-             material="shader:flat; emissive: #ff3b3b; emissiveIntensity:0.22"
-             look-at="#camera"
-             animation="property: rotation; to:0 -6 0; dur:3000; loop:true"></a-image>
-
-    <!-- Ballerino (link youtube) -->
-    <a-image id="ballerinoObj" class="interactive" src="#ballerino"
-             position="0 2.0 -2.3" width="0.9" height="0.9"
-             material="shader:flat; emissive: #ffb3b3; emissiveIntensity:0.12"
-             look-at="#camera"
-             animation="property: scale; dir: alternate; dur:1100; to:1.05 1.05 1.05; loop:true"></a-image>
-
-    <!-- Hologram video (visibile solo dopo click su QR) -->
-    <a-video id="holo" src="#holoVideo" position="0 1.4 -2.8" width="1.8" height="1.0"
-             visible="false" material="shader:flat" look-at="#camera"></a-video>
-
-    <!-- Icone laterali (mostrate alla fine del video) -->
-    <a-image id="whatsIcon" src="#whatsImg" position="-2.6 1.4 -2.8" width="0.7" height="0.7"
-             visible="false" material="shader:flat" look-at="#camera"></a-image>
-    <a-image id="replayIcon" src="#replayImg" position="2.6 1.4 -2.8" width="0.7" height="0.7"
-             visible="false" material="shader:flat" look-at="#camera"></a-image>
-
-    <!-- red ambient glow (subtle sphere) -->
-    <a-entity id="redLight" position="0 1.6 0">
-      <a-sphere radius="0.2" color="#ff2b2b" opacity="0.06"></a-sphere>
-    </a-entity>
-  </a-scene>
-
-  <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
