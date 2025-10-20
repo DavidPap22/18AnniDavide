@@ -1,64 +1,65 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Invito 18 anni - AR Ologramma</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-<script src="https://cdn.rawgit.com/donmccurdy/aframe-extras/v6.1.1/dist/aframe-extras.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>Invito AR — 360 Fix</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 </head>
 <body>
 
-<!-- Menù iniziale con animazioni -->
-<div id="start-overlay">
-  <div class="start-menu">
-    <h1>Invito AR 18 anni</h1>
-    <div class="pulsing-circle"></div>
+<!-- START MENU -->
+<div id="startOverlay">
+  <div class="menu">
+    <h1>Invito AR — Prova Generale</h1>
+    <p>Premi <strong>Entra</strong> per avviare (usa la fotocamera posteriore)</p>
     <button id="startBtn">Entra</button>
   </div>
 </div>
 
-<!-- Contenuto AR -->
-<a-scene embedded vr-mode-ui="enabled: false"
-         arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix">
-  
-  <!-- Luci ambientali rosse -->
-  <a-entity light="type: ambient; intensity: 0.5; color: #ff0000"></a-entity>
-  <a-entity light="type: directional; intensity: 0.8; color: #ff0000" position="0 5 0"></a-entity>
+<!-- A-Frame scene (NO AR.js) -->
+<a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
+  <!-- Sky: verrà impostato dinamicamente al video della camera -->
+  <a-sky id="cameraSky" color="#000"></a-sky>
 
-  <!-- Pallini luminosi dinamici -->
+  <!-- Luci -->
+  <a-entity light="type: ambient; intensity: 0.5; color: #ff0000"></a-entity>
+  <a-entity light="type: directional; intensity: 0.8; color: #ff4444" position="0 5 0"></a-entity>
+
+  <!-- Particelle (pallini rossi) -->
   <a-entity id="particles"></a-entity>
 
-  <!-- Figure interattive -->
-  <a-box id="interactiveBox" color="#ff4444" depth="0.5" height="0.5" width="0.5" position="0 1 -2" class="interactable"></a-box>
-  <a-sphere id="interactiveSphere" color="#ff6666" radius="0.3" position="1 1.2 -2" class="interactable"></a-sphere>
+  <!-- Interactables (geometrie muovibili) -->
+  <a-box id="interactiveBox" class="interactable" position="0 1 -2" depth="0.5" height="0.5" width="0.5" color="#ff4b4b"></a-box>
+  <a-sphere id="interactiveSphere" class="interactable" position="1 1.2 -2" radius="0.3" color="#ff6666"></a-sphere>
 
-  <!-- PNG interattivi 360° -->
-  <a-image id="DonBosco" src="Don bosco.png" position="0 1 -2" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
-  <a-image id="Radio" src="Radio.png" position="2 1 -1" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
-  <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" position="-2 1 -1" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
-  <a-image id="Tromba" src="Tromba.png" position="0 1 2" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
-  <a-image id="Catania" src="Catania.png" position="3 1 0" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
-  <a-image id="Eduverse" src="Eduverse.png" position="-3 1 0" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
-  <a-image id="Fantacalcio" src="Fantacalcio.png" position="1 1 3" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
-  <a-image id="Dj" src="Dj.png" position="-1 1 3" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
-  <a-image id="Ballerino" src="Ballerino.png" position="0 1 -3" scale="1 1 1" look-at="[camera]" class="clickable"></a-image>
+  <!-- PNG items (vuoi modificare posizioni manualmente? ora verranno posizionati automaticamente su sfera) -->
+  <a-image id="DonBosco" src="Don bosco.png" class="item" look-at="#camera"></a-image>
+  <a-image id="Radio" src="Radio.png" class="item" look-at="#camera"></a-image>
+  <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="item" look-at="#camera"></a-image>
+  <a-image id="Tromba" src="Tromba.png" class="item" look-at="#camera"></a-image>
+  <a-image id="Catania" src="Catania.png" class="item" look-at="#camera"></a-image>
+  <a-image id="Eduverse" src="Eduverse.png" class="item" look-at="#camera"></a-image>
+  <a-image id="Fantacalcio" src="Fantacalcio.png" class="item" look-at="#camera"></a-image>
+  <a-image id="Dj" src="Dj.png" class="item" look-at="#camera"></a-image>
+  <a-image id="Ballerino" src="Ballerino.png" class="item" look-at="#camera"></a-image>
 
-  <!-- QR Code e video -->
-  <a-image id="qrCode" src="invito.png" position="0 1.2 -1.5" scale="1.2 1.2 1" class="clickable"></a-image>
-  <a-video id="demoVideo" src="video-demo.webm" position="0 1.2 -1.5" scale="2 1.125 1" visible="false"></a-video>
+  <!-- QR, video e loghi centrali (posizione fissa centrale) -->
+  <a-image id="qrCode" src="invito.png" position="0 1.45 -2" scale="1.2 1.2 1" class="centerItem"></a-image>
+  <!-- a-video asset will be used; scale will be set dynamically by script to preserve aspect ratio -->
+  <a-video id="demoVideo" src="video-demo.webm" position="0 1.45 -2" visible="false"></a-video>
 
-  <!-- Loghi finali -->
-  <a-image id="replayLogo" src="replay.png" position="-1.2 1.2 -1.5" scale="1.2 1.2 1" visible="false" class="clickable"></a-image>
-  <a-image id="whatsappLogo" src="whatsapp.png" position="1.2 1.2 -1.5" scale="1.2 1.2 1" visible="false" class="clickable"></a-image>
+  <!-- big logos (replace video area when video ends) -->
+  <a-image id="replayLogo" src="replay.png" position="-0.7 1.45 -2" visible="false" scale="1.1 1.1 1" class="centerItem"></a-image>
+  <a-image id="whatsappLogo" src="whatsapp.png" position="0.7 1.45 -2" visible="false" scale="1.1 1.1 1" class="centerItem"></a-image>
 
-  <a-entity camera></a-entity>
+  <!-- camera entity -->
+  <a-entity id="camera" camera look-controls position="0 1.6 0"></a-entity>
 </a-scene>
 
-<!-- Audio -->
-<audio id="bgMusic" src="musica.mp3" loop></audio>
+<!-- BACKGROUND MUSIC -->
+<audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
 
 <script src="script.js"></script>
 </body>
