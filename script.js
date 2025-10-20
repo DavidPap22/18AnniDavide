@@ -1,11 +1,14 @@
-/* Final adjustments:
-   - improved camera start (use 'ideal' + fallback) and ensure a-sky material updated after playing
-   - distribution: LEFT, RIGHT, BACK only (never front)
-   - center area reserved for QR/video/logos
+/* script.js — versione robusta completa:
+   - robust getUserMedia attempts (ideal/exact/fallback)
+   - ensure camera DOM video attributes for mobile autoplay
+   - force a-sky texture updates until camera frames show
+   - QR placed far front (z = -5.8), items placed left/right/back only and closer
+   - QR -> holoVideo DOM play with promise handling and fallback overlay
+   - bgMusic pause/resume behavior for item audio
    - logos clickable only when visible
-   - video play via DOM holoVideo (promise handled) with fallback overlay
 */
 
+/* ELEMENTS */
 const startBtn = document.getElementById('startBtn');
 const startOverlay = document.getElementById('startOverlay');
 const bgMusic = document.getElementById('bgMusic');
@@ -16,124 +19,165 @@ const videoTapOverlay = document.getElementById('videoTapOverlay');
 const tapToPlay = document.getElementById('tapToPlay');
 
 const qr = document.getElementById('qrCode');
-const demoVideo = document.getElementById('demoVideo'); // a-video
+const demoVideo = document.getElementById('demoVideo'); // a-video mapping to #holoVideo
 const replayLogo = document.getElementById('replayLogo');
 const whatsappLogo = document.getElementById('whatsappLogo');
 
 const itemIds = ['DonBosco','Radio','EtnaEnsemble','Tromba','Catania','Eduverse','Fantacalcio','Dj','Ballerino'];
 let bgSavedTime = 0;
 
-// Start: big reliable gesture
+/* small util */
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+/* START: ENTRA button (user gesture) */
 startBtn.addEventListener('click', async () => {
   try { await bgMusic.play(); } catch(e){ console.warn('bgMusic blocked', e); }
 
   startOverlay.style.display = 'none';
 
   try {
-    await startCameraStreamRobust();
-  } catch(err){
+    await startCameraWithRetries();
+  } catch (err) {
     console.error('camera start failed', err);
-    alert('Errore accesso fotocamera: ' + (err && err.message ? err.message : err));
+    alert('Impossibile avviare la fotocamera. Controlla HTTPS/permessi e riprova.');
     return;
   }
 
-  // distribute items: left, right, back only (no front)
-  distributeItemsLeftRightBack(3.2);
+  // ensure QR and center elements are at far Z
+  const CENTER_Y = 1.45;
+  const QR_Z = -5.8;
+  qr.setAttribute('position', `0 ${CENTER_Y} ${QR_Z}`);
+  qr.setAttribute('scale', '1.3 1.3 1');
+  demoVideo.setAttribute('position', `0 ${CENTER_Y} ${QR_Z}`);
+  replayLogo.setAttribute('position', `-0.9 ${CENTER_Y} ${QR_Z}`);
+  whatsappLogo.setAttribute('position', `0.9 ${CENTER_Y} ${QR_Z}`);
+  replayLogo.setAttribute('visible','false');
+  whatsappLogo.setAttribute('visible','false');
+  replayLogo.classList.remove('clickable');
+  whatsappLogo.classList.remove('clickable');
 
-  // subtle particles
+  // place items LEFT/RIGHT/BACK only, at radius < |QR_Z| so they stay closer and never front
+  distributeItemsLeftRightBack(Math.min(Math.abs(QR_Z) - 1.0, 3.5));
+
+  // particles visual
   createParticles(36);
 
-  // wire interactions
+  // wire up interactions
   setupInteractions();
 });
 
-/* Try with 'ideal' first, then fallbacks. Many Android phones (incl. some Realme) prefer 'ideal' */
-async function startCameraStreamRobust(){
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia non supportato');
+/* Robust camera start: tries multiple constraints and forces video attributes */
+async function startCameraWithRetries(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('getUserMedia non supportato');
+  }
 
-  let stream = null;
-  const tries = [
-    { video: { facingMode: { ideal: "environment" } }, audio:false },
-    { video: { facingMode: "environment" }, audio:false },
-    { video: true, audio:false }
+  // prepare DOM video element attributes for mobile acceptance
+  cameraStreamEl.setAttribute('playsinline','');
+  cameraStreamEl.setAttribute('webkit-playsinline','');
+  cameraStreamEl.setAttribute('autoplay','');
+  cameraStreamEl.setAttribute('muted','');
+  cameraStreamEl.setAttribute('crossorigin','anonymous');
+  cameraStreamEl.style.objectFit = 'cover';
+
+  const attempts = [
+    { video: { facingMode: { ideal: 'environment' } }, audio: false },
+    { video: { facingMode: 'environment' }, audio: false },
+    { video: true, audio: false }
   ];
 
-  for(const c of tries){
+  let lastErr = null;
+  let stream = null;
+  for(const c of attempts){
     try{
       stream = await navigator.mediaDevices.getUserMedia(c);
       if(stream) break;
-    }catch(e){
-      console.warn('getUserMedia try failed', c, e);
+    } catch(e){
+      lastErr = e;
+      console.warn('getUserMedia attempt failed', c, e);
+      await wait(180); // backoff small
     }
   }
-  if(!stream) throw new Error('Impossibile ottenere stream camera');
+  if(!stream) throw lastErr || new Error('Nessuno stream camera ottenuto');
 
   cameraStreamEl.srcObject = stream;
   cameraStreamEl.muted = true;
   cameraStreamEl.playsInline = true;
-  try { await cameraStreamEl.play(); } catch(e){ console.warn('cameraStream.play blocked', e); }
 
-  // Wait until playing or small timeout
+  // attempt play and wait for frames
+  try {
+    const p = cameraStreamEl.play();
+    if(p && p.then) await p;
+  } catch(playErr){
+    console.warn('cameraStream.play() rejected', playErr);
+  }
+
+  // wait for 'playing' event or short timeout
   await new Promise((resolve) => {
-    const timeout = setTimeout(()=> { console.warn('camera play timeout'); resolve(); }, 1500);
-    function onPlay(){ clearTimeout(timeout); cameraStreamEl.removeEventListener('playing', onPlay); resolve(); }
+    let done = false;
+    function onPlay(){ if(done) return; done=true; cameraStreamEl.removeEventListener('playing', onPlay); resolve(); }
     cameraStreamEl.addEventListener('playing', onPlay);
+    setTimeout(()=> { if(!done){ done=true; cameraStreamEl.removeEventListener('playing', onPlay); resolve(); } }, 1800);
   });
 
-  // set a-sky material to use camera stream; use shader: flat to avoid lighting
+  // attach to a-sky with flat shader so lighting doesn't wash it
   const sky = document.getElementById('cameraSky');
   sky.setAttribute('material', 'shader: flat; src: #cameraStream');
 
-  // force texture update on three.js material if possible (some engines need explicit mark)
-  try{
-    const threeObj = sky.getObject3D('mesh');
-    if(threeObj && threeObj.material && threeObj.material.map){
-      threeObj.material.map.needsUpdate = true;
-      threeObj.material.needsUpdate = true;
-    }
-  }catch(e){ /* ignore if not accessible */ }
+  // repeatedly force texture update on three.js material for a short while
+  forceSkyTextureUpdate(sky, 1400, 80);
 }
 
-/* Distribute items ONLY left, right and back. No item in front (-Z direction).
-   Left sector: 30deg..150deg
-   Back sector: 150deg..210deg
-   Right sector: 210deg..330deg
-   Items assigned round-robin into these three sectors. */
-function distributeItemsLeftRightBack(radius = 3.2){
+/* Force three.js texture updates to help devices that don't immediately map video */
+function forceSkyTextureUpdate(skyEl, duration = 1400, interval = 80){
+  const start = Date.now();
+  const tid = setInterval(() => {
+    try {
+      const mesh = skyEl.getObject3D('mesh');
+      if(mesh && mesh.material && mesh.material.map){
+        mesh.material.map.needsUpdate = true;
+        mesh.material.needsUpdate = true;
+      }
+    } catch(e){ /* ignore */ }
+    if(Date.now() - start > duration) clearInterval(tid);
+  }, interval);
+}
+
+/* Distribute items left / back / right only (never in front) */
+function distributeItemsLeftRightBack(radius = 3.1){
   const sectors = [
-    { from: Math.PI/6, to: 5*Math.PI/6 },    // left
-    { from: 5*Math.PI/6, to: 7*Math.PI/6 },  // back
-    { from: 7*Math.PI/6, to: 11*Math.PI/6 }  // right
+    {from: Math.PI/6, to: 5*Math.PI/6},    // left sector
+    {from: 5*Math.PI/6, to: 7*Math.PI/6},  // back sector
+    {from: 7*Math.PI/6, to: 11*Math.PI/6}  // right sector
   ];
-  let i = 0;
+  let idx = 0;
   for(const id of itemIds){
     const el = document.getElementById(id);
     if(!el) continue;
-    const sector = sectors[i % sectors.length];
-    // distribute uniformly inside sector with small jitter
-    const t = ((i / itemIds.length) % 1);
-    const az = sector.from + ( ( (i / Math.ceil(itemIds.length/3) ) / Math.ceil(itemIds.length/3) ) * (sector.to - sector.from) );
-    // add a tiny jitter so they don't align perfectly
-    const azJ = az + (Math.random()*0.15 - 0.075);
+    const sector = sectors[idx % sectors.length];
+    // spread items inside sector with slight jitter
+    const slot = Math.floor(idx / sectors.length);
+    const denom = Math.max(1, Math.ceil(itemIds.length / sectors.length));
+    const frac = (slot + Math.random()*0.6) / denom;
+    const az = sector.from + frac * (sector.to - sector.from) + (Math.random()*0.12 - 0.06);
     const elevOptions = [-0.12, 0.02, 0.14];
-    const elev = elevOptions[i % elevOptions.length];
-    const x = radius * Math.cos(elev) * Math.sin(azJ);
+    const elev = elevOptions[idx % elevOptions.length];
+    const x = radius * Math.cos(elev) * Math.sin(az);
     const y = radius * Math.sin(elev) + 1.35;
-    const z = radius * Math.cos(elev) * Math.cos(azJ);
+    const z = radius * Math.cos(elev) * Math.cos(az);
     el.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
-    el.setAttribute('scale', '1 1 1');
+    el.setAttribute('scale', '0.95 0.95 0.95');
     el.setAttribute('look-at', '#camera');
-    // make items clickable
     el.classList.add('clickable');
-    i++;
+    idx++;
   }
 }
 
-/* particles */
-function createParticles(count=30){
+/* Particles for hologram feel */
+function createParticles(count = 32){
   const root = document.getElementById('particles');
   while(root.firstChild) root.removeChild(root.firstChild);
-  for(let k=0;k<count;k++){
+  for(let i=0;i<count;i++){
     const s = document.createElement('a-sphere');
     const px = (Math.random()*2 - 1) * 3;
     const py = Math.random()*2 + 0.6;
@@ -144,27 +188,26 @@ function createParticles(count=30){
     const tx = px + (Math.random()*0.6 - 0.3);
     const ty = py + (Math.random()*0.6 - 0.3);
     const tz = pz + (Math.random()*0.6 - 0.3);
-    const dur = 1800 + Math.random()*2600;
+    const dur = 1600 + Math.random()*2600;
     s.setAttribute('animation', `property: position; to: ${tx.toFixed(3)} ${ty.toFixed(3)} ${tz.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
     root.appendChild(s);
   }
 }
 
-/* interactions */
+/* Interactions: QR -> holoVideo play -> video ends -> logos; items: audio/link map */
 function setupInteractions(){
-  ensureVideoAspect();
+  preserveVideoAspect();
 
-  // logos initially not clickable
+  // ensure logos are not clickable until visible
   replayLogo.classList.remove('clickable');
   whatsappLogo.classList.remove('clickable');
 
-  // QR click -> play holoVideo (DOM video) and show a-video
+  // QR click: hide QR, show a-video and try to play DOM video
   qr.addEventListener('click', async () => {
     qr.setAttribute('visible','false');
     demoVideo.setAttribute('visible','true');
-
     try {
-      await holoVideo.play();
+      await holoVideo.play(); // user gesture originated from QR tap
       try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
     } catch(playErr){
       console.warn('holoVideo.play rejected', playErr);
@@ -178,12 +221,12 @@ function setupInteractions(){
     try {
       await holoVideo.play();
       try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-    } catch(e){
+    } catch(err){
       alert('Impossibile avviare il video su questo dispositivo.');
     }
   });
 
-  // when DOM holoVideo ends: hide a-video and show logos (make clickable)
+  // when DOM video ends -> hide a-video, show logos (make clickable), resume bg music
   holoVideo.addEventListener('ended', () => {
     demoVideo.setAttribute('visible','false');
     replayLogo.setAttribute('visible','true');
@@ -193,7 +236,7 @@ function setupInteractions(){
     try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
   });
 
-  // replay
+  // replay action
   replayLogo.addEventListener('click', async () => {
     if(replayLogo.getAttribute('visible') !== true) return;
     replayLogo.setAttribute('visible','false');
@@ -207,13 +250,13 @@ function setupInteractions(){
     }
   });
 
-  // whatsapp
-  whatsappLogo.addEventListener('click', ()=>{
+  // whatsapp action
+  whatsappLogo.addEventListener('click', () => {
     if(whatsappLogo.getAttribute('visible') !== true) return;
     window.open('https://wa.me/1234567890','_blank');
   });
 
-  // items: audioMap and links
+  // items: audio or links
   const audioMap = { 'Radio':'radio.mp3', 'Fantacalcio':'fantacalcio.mp3', 'Dj':'dj.mp3' };
   const linkMap = {
     'DonBosco':'https://www.instagram.com/giovani_animatori_trecastagni/',
@@ -222,27 +265,26 @@ function setupInteractions(){
     'Eduverse':'https://www.instagram.com/eduverse___/'
   };
 
-  itemIds.forEach(id=>{
+  itemIds.forEach(id => {
     const el = document.getElementById(id);
     if(!el) return;
     el.addEventListener('click', () => {
       if(audioMap[id]){
-        try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-        const a = new Audio(audioMap[id]);
-        a.play();
-        a.onended = ()=> { try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){} };
+        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+        const a = new Audio(audioMap[id]); a.play();
+        a.onended = () => { try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){} };
         return;
       }
       if(id === 'Tromba'){ window.open('https://youtu.be/AMK10N6wwHM','_blank'); return; }
       if(id === 'Ballerino'){ window.open('https://youtu.be/JS_BY3LRBqw','_blank'); return; }
       if(linkMap[id]){ window.open(linkMap[id], '_blank'); return; }
-      window.open('https://instagram.com','_blank');
+      window.open('https://instagram.com', '_blank');
     });
   });
 }
 
-/* ensure a-video scale equals source aspect ratio */
-function ensureVideoAspect(){
+/* Ensure a-video plane respects video aspect ratio */
+function preserveVideoAspect(){
   const src = holoVideo.querySelector('source') ? holoVideo.querySelector('source').src : holoVideo.src;
   if(!src) return;
   const probe = document.createElement('video');
