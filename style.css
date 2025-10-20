@@ -1,35 +1,28 @@
-/* Full-page red menu + AR scene styling */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:#000;font-family:Inter,Arial,Helvetica,sans-serif}
 a-scene{width:100vw;height:100vh;display:block}
 
-/* START OVERLAY fills whole screen with vivid red */
+/* FULL PAGE RED MENU */
 #startOverlay{
   position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;
   background: linear-gradient(180deg, #b50d0d 0%, #ff0000 40%, #7a0000 100%);
   color:#fff;
   -webkit-user-select:none; user-select:none;
 }
-
-/* central menu card is visually simple but big for easy tap */
 .startContent{
-  text-align:center;padding:28px;border-radius:12px;width:94%;max-width:480px;
-  background: rgba(0,0,0,0.06); /* subtle inner card */
+  text-align:center;padding:28px;border-radius:12px;width:94%;max-width:480px;background:rgba(0,0,0,0.06);
 }
-.title{font-size:2rem;margin:0 0 8px;letter-spacing:1px}
-.mini{margin:0 0 18px;opacity:0.95}
-.note{margin-top:14px;font-size:0.9rem;opacity:0.9}
+.startContent h1{font-size:2rem;margin:0 0 8px}
+.startContent .mini{margin:0 0 18px}
+.startContent .note{margin-top:14px;font-size:0.9rem;opacity:0.95}
 
-/* large pill button */
+/* big button */
 .enterBtn{
   display:inline-block;padding:18px 36px;border-radius:999px;border:none;background:#fff;color:#b90000;
-  font-weight:800;font-size:1.15rem;cursor:pointer;
-  box-shadow:0 12px 40px rgba(0,0,0,0.28);
+  font-weight:800;font-size:1.15rem;cursor:pointer;box-shadow:0 12px 40px rgba(0,0,0,0.28);
   -webkit-tap-highlight-color: transparent;
 }
 .enterBtn:active{transform:scale(0.98)}
 
-/* generic clickable/item helpers */
-.clickable{cursor:pointer}
-.center{cursor:pointer}
-.item{cursor:pointer}
+/* fallback overlay for video play */
+#videoTapOverlay{display:flex}

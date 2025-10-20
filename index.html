@@ -2,8 +2,8 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>Invito AR — Menù Rosso</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Invito AR — Menù Rosso (Fix)</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 </head>
@@ -19,19 +19,27 @@
   </div>
 </div>
 
-<!-- A-Frame scene (camera --> a-sky for true 360) -->
+<!-- Hidden DOM videos (camera feed + holo video) -->
+<!-- cameraStream = feed della fotocamera (muted) -->
+<video id="cameraStream" playsinline webkit-playsinline muted style="display:none"></video>
+<!-- holoVideo = video ologramma (con audio) -->
+<video id="holoVideo" playsinline webkit-playsinline style="display:none" preload="auto">
+  <source src="video-demo.mp4" type="video/mp4">
+</video>
+
+<!-- A-Frame scene (camera -> a-sky for true 360) -->
 <a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
-  <!-- sky (will be assigned camera stream) -->
+  <!-- sky (will be assigned cameraStream via #cameraStream) -->
   <a-sky id="cameraSky" color="#000"></a-sky>
 
   <!-- soft red ambient lights -->
   <a-entity light="type: ambient; intensity: 0.45; color: #ff2222"></a-entity>
   <a-entity light="type: directional; intensity: 0.7; color: #ff4b4b" position="0 5 0"></a-entity>
 
-  <!-- small red particle cluster for hologram feel -->
+  <!-- particles -->
   <a-entity id="particles"></a-entity>
 
-  <!-- ITEMS PNG (positions assigned by script) -->
+  <!-- Items PNG (position assigned by script) -->
   <a-image id="DonBosco" src="Don bosco.png" class="clickable item" look-at="#camera"></a-image>
   <a-image id="Radio" src="Radio.png" class="clickable item" look-at="#camera"></a-image>
   <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="clickable item" look-at="#camera"></a-image>
@@ -42,14 +50,14 @@
   <a-image id="Dj" src="Dj.png" class="clickable item" look-at="#camera"></a-image>
   <a-image id="Ballerino" src="Ballerino.png" class="clickable item" look-at="#camera"></a-image>
 
-  <!-- CENTER FLOW: QR --> VIDEO --> LOGOS -->
+  <!-- CENTRAL: QR -> video -> logos (a-video uses DOM holoVideo) -->
   <a-image id="qrCode" src="invito.png" position="0 1.45 -2" scale="1.2 1.2 1" class="center clickable"></a-image>
-  <a-video id="demoVideo" src="video-demo.webm" position="0 1.45 -2" visible="false"></a-video>
+  <a-video id="demoVideo" src="#holoVideo" position="0 1.45 -2" visible="false"></a-video>
 
   <a-image id="replayLogo" src="replay.png" position="-0.8 1.45 -2" visible="false" scale="1.1 1.1 1" class="center clickable"></a-image>
   <a-image id="whatsappLogo" src="whatsapp.png" position="0.8 1.45 -2" visible="false" scale="1.1 1.1 1" class="center clickable"></a-image>
 
-  <!-- camera + cursor (rayOrigin: mouse makes taps reliable on mobile) -->
+  <!-- camera + cursor for mobile taps -->
   <a-entity id="cameraRig">
     <a-entity id="camera" camera look-controls position="0 1.6 0">
       <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
@@ -59,6 +67,14 @@
 
 <!-- background music -->
 <audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
+
+<!-- small overlay for video-play fallback (shown only if play() rejected) -->
+<div id="videoTapOverlay" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:99999;pointer-events:auto;">
+  <div style="background:rgba(0,0,0,0.6);padding:20px;border-radius:12px;color:#fff;text-align:center;">
+    <p>Tocca il centro per avviare il video</p>
+    <button id="tapToPlay" style="padding:12px 20px;border-radius:8px;border:none;background:#ff3333;color:#fff;font-weight:700;">Avvia Video</button>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>
