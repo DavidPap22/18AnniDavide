@@ -1,13 +1,8 @@
-body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
+body, html { margin:0; padding:0; height:100%; overflow:hidden; font-family:Arial,sans-serif; }
 #protected-overlay {
-  position: fixed; inset: 0; display: flex; justify-content: center; align-items: center;
-  background: rgba(0,0,0,0.7); z-index: 50;
+  position: fixed; inset:0; display:flex; justify-content:center; align-items:center;
+  background: rgba(0,0,0,0.7); z-index:50;
 }
-#protected-overlay form { background: #fff; padding: 20px; border-radius: 10px; }
-.clickable { cursor: pointer; }
-#debugPanel {
-  position: fixed; top: 10px; right: 10px; background: rgba(255,0,0,0.8); padding: 10px;
-  border-radius: 8px; color: #fff; max-width: 250px; z-index: 60;
-}
-#debugPanel h3 { margin: 0 0 5px 0; font-size: 14px; }
-#debugPanel button { margin-top: 5px; width: 100%; }
+#protected-overlay form { background:#fff; padding:20px; border-radius:10px; }
+.clickable { cursor:pointer; }
+.interactable { cursor:grab; }

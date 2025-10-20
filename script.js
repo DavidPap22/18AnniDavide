@@ -1,4 +1,5 @@
 const SECRET_TOKEN = 'INVITO123';
+const bgMusic = document.getElementById('bgMusic');
 
 function getQueryParam(name){
   const url = new URL(window.location.href);
@@ -9,6 +10,7 @@ function unlock() {
   document.getElementById('protected-overlay').classList.add('hidden');
   document.querySelector('a-scene').style.display = 'block';
   bgMusic.play();
+  enableRearCamera();
 }
 
 function lock() {
@@ -20,25 +22,34 @@ window.addEventListener('DOMContentLoaded', ()=>{
   const q = getQueryParam('token');
   if(q && q === SECRET_TOKEN){ unlock(); } else { lock(); }
 
-  const form = document.getElementById('tokenForm');
-  form.addEventListener('submit', e=>{
+  document.getElementById('tokenForm').addEventListener('submit', e=>{
     e.preventDefault();
-    const v = document.getElementById('token').value.trim();
-    if(v === SECRET_TOKEN) unlock();
+    const val = document.getElementById('token').value.trim();
+    if(val === SECRET_TOKEN) unlock();
     else alert('Codice errato');
   });
 
   initARInteractions();
-  initDebugPanel();
+  initParticles();
+  initInteractables();
 });
 
-const bgMusic = document.getElementById('bgMusic');
+// -------------------- Retro Camera Mobile --------------------
+function enableRearCamera() {
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
+      .then(stream => { /* AR.js usa automaticamente lo stream */ })
+      .catch(err => alert("Attiva i permessi della fotocamera retro per vedere l'ambiente reale"));
+  }
+}
 
+// -------------------- AR Interactions --------------------
 function initARInteractions() {
   const qr = document.getElementById('qrCode');
   const video = document.getElementById('demoVideo');
   const replayLogo = document.getElementById('replayLogo');
   const whatsappLogo = document.getElementById('whatsappLogo');
+  let pausedAt = 0;
 
   qr.addEventListener('click', ()=>{
     qr.setAttribute('visible', 'false');
@@ -69,49 +80,54 @@ function initARInteractions() {
   document.querySelectorAll('.clickable').forEach(el=>{
     if(!['qrCode','demoVideo','replayLogo','whatsappLogo'].includes(el.id)){
       el.addEventListener('click', ()=>{
+        pausedAt = bgMusic.currentTime;
         bgMusic.pause();
-        if(el.id === 'Radio') new Audio('radio.mp3').play();
-        else if(el.id === 'Fantacalcio') new Audio('fantacalcio.mp3').play();
-        else if(el.id === 'Dj') new Audio('dj.mp3').play();
-        else if(el.id === 'Tromba') window.open('https://youtu.be/AMK10N6wwHM','_blank');
-        else if(el.id === 'Ballerino') window.open('https://youtu.be/JS_BY3LRBqw','_blank');
-        else window.open('https://instagram.com','_blank');
-        setTimeout(()=> bgMusic.play(), 5000);
+        let audio;
+        switch(el.id){
+          case 'Radio': audio=new Audio('radio.mp3'); break;
+          case 'Fantacalcio': audio=new Audio('fantacalcio.mp3'); break;
+          case 'Dj': audio=new Audio('dj.mp3'); break;
+          case 'Tromba': window.open('https://youtu.be/AMK10N6wwHM','_blank'); return;
+          case 'Ballerino': window.open('https://youtu.be/JS_BY3LRBqw','_blank'); return;
+          default: window.open('https://instagram.com','_blank'); return;
+        }
+        audio.play();
+        audio.onended = ()=> {
+          bgMusic.currentTime = pausedAt;
+          bgMusic.play();
+        };
       });
     }
   });
 }
 
-// -------------------- DEBUG PANEL --------------------
-function initDebugPanel() {
-  const slidersDiv = document.getElementById('sliders');
-  const elements = document.querySelectorAll('a-image.clickable');
-  elements.forEach(el=>{
-    const container = document.createElement('div');
-    container.innerHTML = `<strong>${el.id}</strong><br>
-      X:<input type="range" min="-5" max="5" step="0.1" value="${el.getAttribute('position').x}" data-prop="x"><br>
-      Y:<input type="range" min="0" max="5" step="0.1" value="${el.getAttribute('position').y}" data-prop="y"><br>
-      Z:<input type="range" min="-5" max="5" step="0.1" value="${el.getAttribute('position').z}" data-prop="z"><br>
-      RotY:<input type="range" min="0" max="360" step="1" value="${el.getAttribute('rotation').y}" data-prop="yrot"><br><br>`;
-    slidersDiv.appendChild(container);
+// -------------------- Particles and Light Effects --------------------
+function initParticles() {
+  const scene = document.querySelector('a-scene');
+  for(let i=0;i<50;i++){
+    const sphere = document.createElement('a-sphere');
+    sphere.setAttribute('position', `${Math.random()*6-3} ${Math.random()*3+0.5} ${Math.random()*6-3}`);
+    sphere.setAttribute('radius', 0.05);
+    sphere.setAttribute('color', '#ff0000');
+    sphere.setAttribute('animation', `property: position; dir: alternate; dur: ${Math.random()*2000+2000}; to: ${Math.random()*6-3} ${Math.random()*3+0.5} ${Math.random()*6-3}; loop: true`);
+    scene.appendChild(sphere);
+  }
+}
 
-    container.querySelectorAll('input').forEach(input=>{
-      input.addEventListener('input', e=>{
-        const val = parseFloat(input.value);
-        const prop = input.dataset.prop;
+// -------------------- Interactable Geometries --------------------
+function initInteractables(){
+  const interactables = document.querySelectorAll('.interactable');
+  interactables.forEach(el=>{
+    let isDragging = false;
+    el.addEventListener('mousedown', ()=> isDragging=true);
+    el.addEventListener('mouseup', ()=> isDragging=false);
+    el.addEventListener('mousemove', e=>{
+      if(isDragging){
         const pos = el.getAttribute('position');
-        const rot = el.getAttribute('rotation');
-        if(prop==='x') pos.x=val;
-        if(prop==='y') pos.y=val;
-        if(prop==='z') pos.z=val;
-        if(prop==='yrot') rot.y=val;
+        pos.x += (e.movementX*0.01);
+        pos.y += (e.movementY*0.01);
         el.setAttribute('position', pos);
-        el.setAttribute('rotation', rot);
-      });
+      }
     });
-  });
-
-  document.getElementById('closeDebug').addEventListener('click', ()=>{
-    document.getElementById('debugPanel').style.display = 'none';
   });
 }
