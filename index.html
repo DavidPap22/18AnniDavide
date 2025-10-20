@@ -1,34 +1,96 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Invito 18 anni AR</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <title>Invito 18 • AR 360</title>
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+  <!-- collegamento ai file CSS/JS esterni -->
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- Musica sempre attiva -->
-<audio id="musica" src="musica.mp3" loop autoplay></audio>
+  <!-- Audio di sottofondo (parte su gesture "Avvia") -->
+  <audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
 
-<!-- Schermata iniziale -->
-<div id="loading-screen">
-    <h1>Invito 18 anni</h1>
-    <p>Musica già in riproduzione</p>
+  <!-- Audio interni -->
+  <audio id="audio-fantacalcio" src="fantacalcio.mp3" preload="auto"></audio>
+  <audio id="audio-dj" src="dj.mp3" preload="auto"></audio>
+
+  <!-- Schermata iniziale con Start (necessaria per sbloccare autoplay audio su mobile) -->
+  <div id="startScreen">
+    <h1>Invito 18 • AR 360</h1>
+    <p class="sub">Musica pronta. Premi <strong>Avvia</strong> per entrare nell'esperienza.</p>
     <button id="startBtn">Avvia</button>
+    <div class="hint">Usare su smartphone (fotocamera posteriore). Ruota il telefono per esplorare.</div>
     <div class="red-light"></div>
-</div>
+  </div>
 
-<!-- AR Container nascosto all’inizio -->
-<div id="ar-container" style="display:none;">
-    <video id="camera" autoplay playsinline muted></video>
-    <img id="qr-code" src="invito.png" alt="Invito">
-    <video id="videoAR" src="video-demo.mp4" type="video/mp4" style="display:none;"></video>
-    <img id="whatsapp-icon" src="whatsapp.png" alt="WhatsApp">
-    <img id="replay-icon" src="replay.png" alt="Replay">
-    <canvas id="particles"></canvas>
-</div>
+  <!-- SCENA A-FRAME -->
+  <a-scene id="scene" vr-mode-ui="enabled: false" embedded renderer="colorManagement: true;">
+    <a-assets>
+      <!-- immagini PNG fornite -->
+      <img id="invitoImg" src="invito.png">
+      <img id="donbosco" src="Don bosco.png">
+      <img id="radio" src="Radio.png">
+      <img id="etna" src="EtnaEnsemble.png">
+      <img id="tromba" src="Tromba.png">
+      <img id="catania" src="Catania.png">
+      <img id="eduverse" src="Eduverse.png">
+      <img id="fantacalcioImg" src="Fantacalcio.png">
+      <img id="djImg" src="Dj.png">
+      <img id="ballerino" src="Ballerino.png">
+      <img id="whatsImg" src="whatsapp.png">
+      <img id="replayImg" src="replay.png">
 
-<script src="script.js"></script>
+      <!-- video che useremo come ologramma (non autoplay fino al click) -->
+      <video id="holoVideo" src="video-demo.mp4" preload="metadata" webkit-playsinline playsinline crossorigin="anonymous"></video>
+    </a-assets>
+
+    <!-- sky che mostrerà la camera stream (impostato via JS con video DOM) -->
+    <a-sky id="cameraSky" color="#000"></a-sky>
+
+    <!-- camera rig -->
+    <a-entity id="cameraRig">
+      <a-entity id="camera" camera look-controls position="0 1.6 0"></a-entity>
+    </a-entity>
+
+    <!-- Oggetti posizionati intorno all'utente (360) -->
+    <!-- QR code frontale -->
+    <a-image id="qrObject" src="#invitoImg" position="0 1.4 -2.5" width="1.2" height="1.2" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+
+    <!-- Elementi attorno (posizioni esemplificative) -->
+    <a-image id="donObj" src="#donbosco"  position="2.0 1.4 -1.2" width="1.0" height="1.0" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+    <a-image id="radioObj" src="#radio"  position="2.0 1.4 1.2"  width="1.0" height="1.0" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+    <a-image id="etnaObj"  src="#etna"   position="0 1.4 3.0"   width="1.0" height="1.0" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+    <a-image id="trombaObj" src="#tromba" position="-2.0 1.4 1.2" width="1.0" height="1.0" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+    <a-image id="cataniaObj" src="#catania"position="-2.0 1.4 -1.2"width="1.0" height="1.0" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+    <a-image id="eduObj"    src="#eduverse"position="0 3.0 -0.5" width="1.0" height="1.0" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+
+    <!-- due oggetti frontali per riprodurre MP3 -->
+    <a-image id="fantObj" src="#fantacalcioImg" position="-0.9 1.0 -2.2" width="1.0" height="1.0" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+    <a-image id="djObj"   src="#djImg"          position="0.9 1.0 -2.2"  width="1.0" height="1.0" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+
+    <!-- ballerino -->
+    <a-image id="ballerinoObj" src="#ballerino" position="0 2.0 -2.3" width="0.9" height="0.9" class="interactive" material="shader:flat" look-at="#camera"></a-image>
+
+    <!-- Hologram video (visibile solo dopo click su QR) -->
+    <a-video id="holo" src="#holoVideo" position="0 1.4 -2.8" width="1.8" height="1.0" visible="false" material="shader:flat" look-at="#camera"></a-video>
+
+    <!-- Icone laterali (mostrate alla fine del video) -->
+    <a-image id="whatsIcon" src="#whatsImg" position="-2.6 1.4 -2.8" width="0.7" height="0.7" visible="false" material="shader:flat" look-at="#camera"></a-image>
+    <a-image id="replayIcon" src="#replayImg" position="2.6 1.4 -2.8" width="0.7" height="0.7" visible="false" material="shader:flat" look-at="#camera"></a-image>
+
+    <!-- red ambient glow (subtle sphere) -->
+    <a-entity id="redLight" position="0 1.6 0">
+      <a-sphere radius="0.2" color="#ff2b2b" opacity="0.06"></a-sphere>
+    </a-entity>
+  </a-scene>
+
+  <!-- script esterno -->
+  <script src="script.js"></script>
 </body>
 </html>
