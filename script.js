@@ -1,125 +1,143 @@
-/* Corrections:
-   - ensure cameraStream is playing and attached to a-sky using material: shader flat
-   - place all items on BACK hemisphere only (so front is reserved to center flow)
-   - ensure center logos are clickable only when visible (add/remove .clickable)
-   - QR tap plays DOM holoVideo (a-video uses src "#holoVideo"); fallback overlay if browser blocks play
+/* Final adjustments:
+   - improved camera start (use 'ideal' + fallback) and ensure a-sky material updated after playing
+   - distribution: LEFT, RIGHT, BACK only (never front)
+   - center area reserved for QR/video/logos
+   - logos clickable only when visible
+   - video play via DOM holoVideo (promise handled) with fallback overlay
 */
 
 const startBtn = document.getElementById('startBtn');
 const startOverlay = document.getElementById('startOverlay');
 const bgMusic = document.getElementById('bgMusic');
 
-const cameraStreamEl = document.getElementById('cameraStream'); // DOM video for camera
-const holoVideo = document.getElementById('holoVideo');         // DOM video for holo
+const cameraStreamEl = document.getElementById('cameraStream');
+const holoVideo = document.getElementById('holoVideo');
 const videoTapOverlay = document.getElementById('videoTapOverlay');
 const tapToPlay = document.getElementById('tapToPlay');
 
 const qr = document.getElementById('qrCode');
-const demoVideo = document.getElementById('demoVideo'); // a-video (src="#holoVideo")
+const demoVideo = document.getElementById('demoVideo'); // a-video
 const replayLogo = document.getElementById('replayLogo');
 const whatsappLogo = document.getElementById('whatsappLogo');
 
 const itemIds = ['DonBosco','Radio','EtnaEnsemble','Tromba','Catania','Eduverse','Fantacalcio','Dj','Ballerino'];
 let bgSavedTime = 0;
 
+// Start: big reliable gesture
 startBtn.addEventListener('click', async () => {
   try { await bgMusic.play(); } catch(e){ console.warn('bgMusic blocked', e); }
 
   startOverlay.style.display = 'none';
 
   try {
-    await startCameraStreamAndBindSky();
-  } catch (err) {
+    await startCameraStreamRobust();
+  } catch(err){
     console.error('camera start failed', err);
-    alert('Errore fotocamera: ' + (err && err.message ? err.message : err));
+    alert('Errore accesso fotocamera: ' + (err && err.message ? err.message : err));
     return;
   }
 
-  // Put items behind user (back hemisphere)
-  distributeItemsOnBackHemisphere(3.3);
+  // distribute items: left, right, back only (no front)
+  distributeItemsLeftRightBack(3.2);
 
-  // particles
+  // subtle particles
   createParticles(36);
 
-  // interactions
+  // wire interactions
   setupInteractions();
 });
 
-async function startCameraStreamAndBindSky(){
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    throw new Error('getUserMedia non supportato.');
-  }
+/* Try with 'ideal' first, then fallbacks. Many Android phones (incl. some Realme) prefer 'ideal' */
+async function startCameraStreamRobust(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia non supportato');
 
   let stream = null;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } }, audio: false });
-  } catch(e1){
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-    } catch(e2){
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  const tries = [
+    { video: { facingMode: { ideal: "environment" } }, audio:false },
+    { video: { facingMode: "environment" }, audio:false },
+    { video: true, audio:false }
+  ];
+
+  for(const c of tries){
+    try{
+      stream = await navigator.mediaDevices.getUserMedia(c);
+      if(stream) break;
+    }catch(e){
+      console.warn('getUserMedia try failed', c, e);
     }
   }
+  if(!stream) throw new Error('Impossibile ottenere stream camera');
 
   cameraStreamEl.srcObject = stream;
   cameraStreamEl.muted = true;
   cameraStreamEl.playsInline = true;
-  try { await cameraStreamEl.play(); } catch(e){ console.warn('cameraStream play blocked', e); }
+  try { await cameraStreamEl.play(); } catch(e){ console.warn('cameraStream.play blocked', e); }
 
-  // wait until video has frames (use timeupdate or playing event)
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(()=> {
-      // still try to set sky even if event didn't fire
-      console.warn('cameraStream play timeout, proceeding to set sky');
-      resolve();
-    }, 1500);
-    function onPlay() { clearTimeout(timeout); cameraStreamEl.removeEventListener('playing', onPlay); resolve(); }
+  // Wait until playing or small timeout
+  await new Promise((resolve) => {
+    const timeout = setTimeout(()=> { console.warn('camera play timeout'); resolve(); }, 1500);
+    function onPlay(){ clearTimeout(timeout); cameraStreamEl.removeEventListener('playing', onPlay); resolve(); }
     cameraStreamEl.addEventListener('playing', onPlay);
   });
 
-  // set a-sky material to use the camera DOM video as texture and use flat shader
+  // set a-sky material to use camera stream; use shader: flat to avoid lighting
   const sky = document.getElementById('cameraSky');
-  // Use material setter: shader flat ensures no lighting affects the video texture
   sky.setAttribute('material', 'shader: flat; src: #cameraStream');
-  // Also set rotation so horizon aligns better on some devices (optional)
-  sky.setAttribute('rotation', '0 0 0');
+
+  // force texture update on three.js material if possible (some engines need explicit mark)
+  try{
+    const threeObj = sky.getObject3D('mesh');
+    if(threeObj && threeObj.material && threeObj.material.map){
+      threeObj.material.map.needsUpdate = true;
+      threeObj.material.needsUpdate = true;
+    }
+  }catch(e){ /* ignore if not accessible */ }
 }
 
-/* Place items only on back hemisphere (azimuth from 90deg to 270deg),
-   so front (-Z) reserved for center content */
-function distributeItemsOnBackHemisphere(radius = 3.0){
-  const n = itemIds.length;
-  const startAz = Math.PI / 2; // 90deg
-  const endAz = 3 * Math.PI / 2; // 270deg
-  for(let i=0;i<n;i++){
-    const el = document.getElementById(itemIds[i]);
+/* Distribute items ONLY left, right and back. No item in front (-Z direction).
+   Left sector: 30deg..150deg
+   Back sector: 150deg..210deg
+   Right sector: 210deg..330deg
+   Items assigned round-robin into these three sectors. */
+function distributeItemsLeftRightBack(radius = 3.2){
+  const sectors = [
+    { from: Math.PI/6, to: 5*Math.PI/6 },    // left
+    { from: 5*Math.PI/6, to: 7*Math.PI/6 },  // back
+    { from: 7*Math.PI/6, to: 11*Math.PI/6 }  // right
+  ];
+  let i = 0;
+  for(const id of itemIds){
+    const el = document.getElementById(id);
     if(!el) continue;
-    // distribute evenly across the half-circle
-    const t = i / n;
-    const az = startAz + t * (endAz - startAz);
-    // slight vertical offsets
-    const elevOptions = [-0.12, 0.03, 0.16];
+    const sector = sectors[i % sectors.length];
+    // distribute uniformly inside sector with small jitter
+    const t = ((i / itemIds.length) % 1);
+    const az = sector.from + ( ( (i / Math.ceil(itemIds.length/3) ) / Math.ceil(itemIds.length/3) ) * (sector.to - sector.from) );
+    // add a tiny jitter so they don't align perfectly
+    const azJ = az + (Math.random()*0.15 - 0.075);
+    const elevOptions = [-0.12, 0.02, 0.14];
     const elev = elevOptions[i % elevOptions.length];
-    const x = radius * Math.cos(elev) * Math.sin(az);
+    const x = radius * Math.cos(elev) * Math.sin(azJ);
     const y = radius * Math.sin(elev) + 1.35;
-    const z = radius * Math.cos(elev) * Math.cos(az);
+    const z = radius * Math.cos(elev) * Math.cos(azJ);
     el.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
     el.setAttribute('scale', '1 1 1');
     el.setAttribute('look-at', '#camera');
-    // ensure they are clickable only if not overlapping center (they are behind so safe)
+    // make items clickable
     el.classList.add('clickable');
+    i++;
   }
 }
 
 /* particles */
-function createParticles(count = 30){
+function createParticles(count=30){
   const root = document.getElementById('particles');
   while(root.firstChild) root.removeChild(root.firstChild);
-  for(let i=0;i<count;i++){
+  for(let k=0;k<count;k++){
     const s = document.createElement('a-sphere');
-    const px = (Math.random()*2 -1) * 3;
+    const px = (Math.random()*2 - 1) * 3;
     const py = Math.random()*2 + 0.6;
-    const pz = (Math.random()*2 -1) * 3;
+    const pz = (Math.random()*2 - 1) * 3;
     s.setAttribute('position', `${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);
     s.setAttribute('radius', (0.03 + Math.random()*0.04).toFixed(3));
     s.setAttribute('color', '#ff2b2b');
@@ -134,30 +152,27 @@ function createParticles(count = 30){
 
 /* interactions */
 function setupInteractions(){
-  // ensure video aspect ratio
   ensureVideoAspect();
 
-  // Make sure center logos are not clickable initially
+  // logos initially not clickable
   replayLogo.classList.remove('clickable');
   whatsappLogo.classList.remove('clickable');
 
-  // QR click: play DOM video and show a-video
+  // QR click -> play holoVideo (DOM video) and show a-video
   qr.addEventListener('click', async () => {
-    // hide QR, show a-video
     qr.setAttribute('visible','false');
     demoVideo.setAttribute('visible','true');
 
     try {
-      await holoVideo.play(); // user gesture from QR tap
-      // pause bgMusic and save time
+      await holoVideo.play();
       try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
     } catch(playErr){
-      console.warn('holoVideo.play() rejected:', playErr);
+      console.warn('holoVideo.play rejected', playErr);
       videoTapOverlay.style.display = 'flex';
     }
   });
 
-  // fallback overlay: second tap to start video
+  // fallback overlay tap
   tapToPlay && tapToPlay.addEventListener('click', async () => {
     videoTapOverlay.style.display = 'none';
     try {
@@ -168,24 +183,21 @@ function setupInteractions(){
     }
   });
 
-  // when DOM holoVideo ends: hide video, show logos, resume bgMusic
+  // when DOM holoVideo ends: hide a-video and show logos (make clickable)
   holoVideo.addEventListener('ended', () => {
     demoVideo.setAttribute('visible','false');
     replayLogo.setAttribute('visible','true');
     whatsappLogo.setAttribute('visible','true');
-    // make logos clickable now
     replayLogo.classList.add('clickable');
     whatsappLogo.classList.add('clickable');
     try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
   });
 
-  // replay click
+  // replay
   replayLogo.addEventListener('click', async () => {
-    // ensure it was visible and clickable
     if(replayLogo.getAttribute('visible') !== true) return;
     replayLogo.setAttribute('visible','false');
     whatsappLogo.setAttribute('visible','false');
-    // remove clickable until video ends again
     replayLogo.classList.remove('clickable');
     whatsappLogo.classList.remove('clickable');
     demoVideo.setAttribute('visible','true');
@@ -195,7 +207,8 @@ function setupInteractions(){
     }
   });
 
-  whatsappLogo.addEventListener('click', ()=> {
+  // whatsapp
+  whatsappLogo.addEventListener('click', ()=>{
     if(whatsappLogo.getAttribute('visible') !== true) return;
     window.open('https://wa.me/1234567890','_blank');
   });
@@ -213,7 +226,6 @@ function setupInteractions(){
     const el = document.getElementById(id);
     if(!el) return;
     el.addEventListener('click', () => {
-      // if audio item
       if(audioMap[id]){
         try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
         const a = new Audio(audioMap[id]);
@@ -229,7 +241,7 @@ function setupInteractions(){
   });
 }
 
-/* probe a-video DOM to set a-video scale to match aspect ratio */
+/* ensure a-video scale equals source aspect ratio */
 function ensureVideoAspect(){
   const src = holoVideo.querySelector('source') ? holoVideo.querySelector('source').src : holoVideo.src;
   if(!src) return;
@@ -245,8 +257,7 @@ function ensureVideoAspect(){
       const baseH = 1.0;
       const sx = baseH * aspect;
       const sy = baseH;
-      const aVideo = document.getElementById('demoVideo');
-      aVideo.setAttribute('scale', `${sx} ${sy} 1`);
+      demoVideo.setAttribute('scale', `${sx} ${sy} 1`);
     }
   });
   probe.load();

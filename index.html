@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Invito AR — Fix Posizionamento & Camera</title>
+  <title>Invito AR — Finale</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 </head>
@@ -19,7 +19,7 @@
   </div>
 </div>
 
-<!-- Hidden DOM videos -->
+<!-- Hidden DOM video elements -->
 <video id="cameraStream" playsinline webkit-playsinline muted style="display:none"></video>
 <video id="holoVideo" playsinline webkit-playsinline style="display:none" preload="auto">
   <source src="video-demo.mp4" type="video/mp4">
@@ -27,17 +27,14 @@
 
 <!-- A-Frame scene -->
 <a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
-  <!-- a-sky: material set dynamically after cameraStream starts -->
   <a-sky id="cameraSky" color="#000"></a-sky>
 
-  <!-- lights -->
   <a-entity light="type: ambient; intensity: 0.45; color: #ff2222"></a-entity>
   <a-entity light="type: directional; intensity: 0.7; color: #ff4b4b" position="0 5 0"></a-entity>
 
-  <!-- subtle particles -->
   <a-entity id="particles"></a-entity>
 
-  <!-- ITEMS PNG: positions will be applied by script ON START; they are intentionally NOT in front -->
+  <!-- PNG items (positions set by script) -->
   <a-image id="DonBosco" src="Don bosco.png" class="item" look-at="#camera"></a-image>
   <a-image id="Radio" src="Radio.png" class="item" look-at="#camera"></a-image>
   <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="item" look-at="#camera"></a-image>
@@ -48,7 +45,7 @@
   <a-image id="Dj" src="Dj.png" class="item" look-at="#camera"></a-image>
   <a-image id="Ballerino" src="Ballerino.png" class="item" look-at="#camera"></a-image>
 
-  <!-- CENTER: only these live in front -->
+  <!-- centre flow: only these live in front -->
   <a-image id="qrCode" src="invito.png" position="0 1.45 -2" scale="1.2 1.2 1" class="center clickable"></a-image>
   <a-video id="demoVideo" src="#holoVideo" position="0 1.45 -2" visible="false"></a-video>
 

@@ -22,5 +22,3 @@ a-scene{width:100vw;height:100vh;display:block}
 .clickable{cursor:pointer}
 .center{cursor:pointer}
 .item{cursor:pointer}
-
-/* videoTapOverlay show style handled inline; no extra CSS needed */
