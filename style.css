@@ -1,8 +1,29 @@
 body, html { margin:0; padding:0; height:100%; overflow:hidden; font-family:Arial,sans-serif; }
-#protected-overlay {
+#start-overlay {
   position: fixed; inset:0; display:flex; justify-content:center; align-items:center;
-  background: rgba(0,0,0,0.7); z-index:50;
+  background: rgba(0,0,0,0.85); z-index:50;
 }
-#protected-overlay form { background:#fff; padding:20px; border-radius:10px; }
+.start-menu { text-align:center; color:#fff; position: relative; }
+.start-menu h1 { font-size: 28px; margin-bottom:20px; }
+.start-menu button {
+  padding: 12px 24px;
+  font-size: 18px;
+  border:none;
+  border-radius:10px;
+  background-color:#ff0000;
+  color:#fff;
+  cursor:pointer;
+  z-index:10;
+}
+.pulsing-circle {
+  width:100px; height:100px; border-radius:50%; background:rgba(255,0,0,0.5);
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { transform:translate(-50%,-50%) scale(1); opacity:0.5; }
+  50% { transform:translate(-50%,-50%) scale(1.3); opacity:0.8; }
+  100% { transform:translate(-50%,-50%) scale(1); opacity:0.5; }
+}
 .clickable { cursor:pointer; }
 .interactable { cursor:grab; }

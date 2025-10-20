@@ -1,49 +1,26 @@
-const SECRET_TOKEN = 'INVITO123';
 const bgMusic = document.getElementById('bgMusic');
 
-function getQueryParam(name){
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
-
-function unlock() {
-  document.getElementById('protected-overlay').classList.add('hidden');
-  document.querySelector('a-scene').style.display = 'block';
-  bgMusic.play();
-  enableRearCamera();
-}
-
-function lock() {
-  document.getElementById('protected-overlay').classList.remove('hidden');
-  document.querySelector('a-scene').style.display = 'none';
-}
-
 window.addEventListener('DOMContentLoaded', ()=>{
-  const q = getQueryParam('token');
-  if(q && q === SECRET_TOKEN){ unlock(); } else { lock(); }
-
-  document.getElementById('tokenForm').addEventListener('submit', e=>{
-    e.preventDefault();
-    const val = document.getElementById('token').value.trim();
-    if(val === SECRET_TOKEN) unlock();
-    else alert('Codice errato');
+  const startBtn = document.getElementById('startBtn');
+  startBtn.addEventListener('click', ()=>{
+    document.getElementById('start-overlay').style.display='none';
+    document.querySelector('a-scene').style.display='block';
+    bgMusic.play();
+    enableRearCamera();
+    initARInteractions();
+    initParticles();
+    initInteractables();
   });
-
-  initARInteractions();
-  initParticles();
-  initInteractables();
 });
 
-// -------------------- Retro Camera Mobile --------------------
 function enableRearCamera() {
   if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
-      .then(stream => { /* AR.js usa automaticamente lo stream */ })
-      .catch(err => alert("Attiva i permessi della fotocamera retro per vedere l'ambiente reale"));
+      .then(stream => { /* AR.js usa lo stream */ })
+      .catch(err => alert("Permessi fotocamera retro richiesti!"));
   }
 }
 
-// -------------------- AR Interactions --------------------
 function initARInteractions() {
   const qr = document.getElementById('qrCode');
   const video = document.getElementById('demoVideo');
@@ -73,9 +50,7 @@ function initARInteractions() {
     bgMusic.volume = 0.2;
   });
 
-  whatsappLogo.addEventListener('click', ()=>{
-    window.open('https://wa.me/1234567890','_blank');
-  });
+  whatsappLogo.addEventListener('click', ()=>{ window.open('https://wa.me/1234567890','_blank'); });
 
   document.querySelectorAll('.clickable').forEach(el=>{
     if(!['qrCode','demoVideo','replayLogo','whatsappLogo'].includes(el.id)){
@@ -92,16 +67,12 @@ function initARInteractions() {
           default: window.open('https://instagram.com','_blank'); return;
         }
         audio.play();
-        audio.onended = ()=> {
-          bgMusic.currentTime = pausedAt;
-          bgMusic.play();
-        };
+        audio.onended = ()=> { bgMusic.currentTime = pausedAt; bgMusic.play(); };
       });
     }
   });
 }
 
-// -------------------- Particles and Light Effects --------------------
 function initParticles() {
   const scene = document.querySelector('a-scene');
   for(let i=0;i<50;i++){
@@ -114,7 +85,6 @@ function initParticles() {
   }
 }
 
-// -------------------- Interactable Geometries --------------------
 function initInteractables(){
   const interactables = document.querySelectorAll('.interactable');
   interactables.forEach(el=>{
