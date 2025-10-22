@@ -2,69 +2,95 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>Invito AR — Finale</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Invito AR — 18 Anni</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@react-three/fiber": "https://aistudiocdn.com/@react-three/fiber@^9.4.0",
+    "@react-three/xr": "https://aistudiocdn.com/@react-three/xr@^6.6.27",
+    "@react-three/drei": "https://aistudiocdn.com/@react-three/drei@^10.7.6",
+    "three": "https://aistudiocdn.com/three@^0.180.0"
+  }
+}
+</script>
 </head>
 <body>
 
 <div id="startOverlay">
   <div class="startContent">
     <h1>INVITO • 18 ANNI</h1>
-    <p class="mini">Premi <strong>ENTRA</strong> per entrare nell'esperienza</p>
+    <p class="mini">Premi <strong>ENTRA</strong> per avviare l'esperienza in AR.</p>
     <button id="startBtn" class="enterBtn">ENTRA</button>
-    <p class="note">Consenti l'accesso alla fotocamera posteriore.</p>
+    <p class="note">Quando richiesto, consenti l'accesso alla fotocamera.</p>
   </div>
 </div>
 
-<video id="cameraStream" playsinline webkit-playsinline muted autoplay style="display:none"></video>
-<video id="holoVideo" playsinline webkit-playsinline preload="auto" style="display:none">
-  <source src="video-demo.mp4" type="video/mp4">
-</video>
+<!-- A-Frame Scene -->
+<a-scene 
+  id="scene" 
+  webxr="requiredFeatures: viewer, local-floor; optionalFeatures: dom-overlay; overlayElement: #startOverlay"
+  renderer="antialias: true; colorManagement: true;">
 
-<a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
-  <a-sky id="cameraSky" color="#000"></a-sky>
-  <a-entity light="type: ambient; intensity: 0.45; color: #ff2222"></a-entity>
-  <a-entity id="pulseLight" light="type: point; intensity:0.6; color:#ff2222; distance:10" position="0 3 0"></a-entity>
+  <!-- Sistema di pre-caricamento Asset -->
+  <a-assets>
+    <!-- Immagini -->
+    <img id="donBoscoImg" src="Don bosco.png" crossorigin="anonymous">
+    <img id="radioImg" src="Radio.png" crossorigin="anonymous">
+    <img id="etnaEnsembleImg" src="EtnaEnsemble.png" crossorigin="anonymous">
+    <img id="trombaImg" src="Tromba.png" crossorigin="anonymous">
+    <img id="cataniaImg" src="Catania.png" crossorigin="anonymous">
+    <img id="eduverseImg" src="Eduverse.png" crossorigin="anonymous">
+    <img id="fantacalcioImg" src="Fantacalcio.png" crossorigin="anonymous">
+    <img id="djImg" src="Dj.png" crossorigin="anonymous">
+    <img id="ballerinoImg"src="Ballerino.png" crossorigin="anonymous">
+    <img id="qrCodeImg" src="invito.png" crossorigin="anonymous">
+    <img id="replayImg" src="replay.png" crossorigin="anonymous">
+    <img id="whatsappImg" src="whatsapp.png" crossorigin="anonymous">
 
+    <!-- Video -->
+    <video id="holoVideo" playsinline webkit-playsinline preload="auto" src="video-demo.mp4" crossorigin="anonymous"></video>
+
+    <!-- Audio -->
+    <audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
+    <audio id="fantacalcioAudio" src="fantacalcio.mp3" preload="auto"></audio>
+    <audio id="djAudio" src="dj.mp3" preload="auto"></audio>
+  </a-assets>
+
+  <!-- Luci della Scena -->
+  <a-entity light="type: ambient; intensity: 0.6;"></a-entity>
+  <a-entity id="pulseLight" light="type: point; intensity: 0.8; color:#ff4444; distance: 15" position="0 2.5 -1"></a-entity>
+
+  <!-- Contenitore per effetti speciali -->
   <a-entity id="particles"></a-entity>
 
-  <!-- Items -->
-  <a-image id="DonBosco" src="Don bosco.png" class="item"></a-image>
-  <a-image id="Radio" src="Radio.png" class="item"></a-image>
-  <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="item"></a-image>
-  <a-image id="Tromba" src="Tromba.png" class="item"></a-image>
-  <a-image id="Catania" src="Catania.png" class="item"></a-image>
-  <a-image id="Eduverse" src="Eduverse.png" class="item"></a-image>
-  <a-image id="Fantacalcio" src="Fantacalcio.png" class="item"></a-image>
-  <a-image id="Dj" src="Dj.png" class="item"></a-image>
-  <a-image id="Ballerino" src="Ballerino.png" class="item"></a-image>
+  <!-- Items Interattivi -->
+  <a-image id="DonBosco" src="#donBoscoImg" class="item clickable"></a-image>
+  <a-image id="Radio" src="#radioImg" class="item clickable"></a-image>
+  <a-image id="EtnaEnsemble" src="#etnaEnsembleImg" class="item clickable"></a-image>
+  <a-image id="Tromba" src="#trombaImg" class="item clickable"></a-image>
+  <a-image id="Catania" src="#cataniaImg" class="item clickable"></a-image>
+  <a-image id="Eduverse" src="#eduverseImg" class="item clickable"></a-image>
+  <a-image id="Fantacalcio" src="#fantacalcioImg" class="item clickable"></a-image>
+  <a-image id="Dj" src="#djImg" class="item clickable"></a-image>
+  <a-image id="Ballerino" src="#ballerinoImg" class="item clickable"></a-image>
 
-  <!-- QR e video al centro -->
-  <a-image id="qrCode" src="invito.png" position="0 1.2 -1.5" scale="1.3 1.3 1" class="center clickable"></a-image>
-  <a-video id="demoVideo" src="#holoVideo" position="0 1.2 -1.5" visible="false"></a-video>
+  <!-- Invito, Video e Loghi Finali -->
+  <a-image id="qrCode" src="#qrCodeImg" position="0 1.2 -1.5" scale="1.1 1.1 1" class="clickable"></a-image>
+  <a-video id="demoVideo" src="#holoVideo" position="0 1.2 -1.5" visible="false" scale="1 1 1"></a-video>
+  <a-image id="replayLogo" src="#replayImg" position="-0.7 1.2 -1.5" visible="false" scale="0.9 0.9 1"></a-image>
+  <a-image id="whatsappLogo" src="#whatsappImg" position="0.7 1.2 -1.5" visible="false" scale="0.9 0.9 1"></a-image>
 
-  <!-- logos -->
-  <a-image id="replayLogo" src="replay.png" position="-0.9 1.2 -1.5" visible="false" scale="1.2 1.2 1"></a-image>
-  <a-image id="whatsappLogo" src="whatsapp.png" position="0.9 1.2 -1.5" visible="false" scale="1.2 1.2 1"></a-image>
-
-  <!-- Camera + cursor -->
-  <a-entity id="cameraRig">
-    <a-entity id="camera" camera look-controls position="0 1.6 0">
+  <!-- Camera gestita da WebXR -->
+  <a-entity id="camera" camera look-controls position="0 1.6 0">
       <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
-    </a-entity>
   </a-entity>
 </a-scene>
-
-<audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
-
-<div id="videoTapOverlay" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:99999;">
-  <div style="background:rgba(0,0,0,0.6);padding:20px;border-radius:12px;color:#fff;text-align:center;">
-    <p>Tocca il centro per avviare il video</p>
-    <button id="tapToPlay" style="padding:12px 20px;border-radius:8px;border:none;background:#ff3333;color:#fff;font-weight:700;">Avvia Video</button>
-  </div>
-</div>
 
 <script src="script.js"></script>
 </body>
