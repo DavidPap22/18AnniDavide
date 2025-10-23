@@ -3,52 +3,38 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>Invito AR — Finale (Effetti avanzati)</title>
+  <title>Invito AR — Finale</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 </head>
 <body>
 
-<!-- START OVERLAY -->
-<div id="startOverlay" role="dialog" aria-label="Menu di avvio">
+<div id="startOverlay">
   <div class="startContent">
     <h1>INVITO • 18 ANNI</h1>
     <p class="mini">Premi <strong>ENTRA</strong> per entrare nell'esperienza</p>
     <button id="startBtn" class="enterBtn">ENTRA</button>
-    <p class="note">Consenti accesso fotocamera (posteriore). Usa HTTPS (GitHub Pages consigliato).</p>
+    <p class="note">Consenti l'accesso alla fotocamera posteriore.</p>
   </div>
 </div>
 
-<!-- DOM video elements -->
+<!-- camera feed hidden element e video olografico -->
 <video id="cameraStream" playsinline webkit-playsinline muted autoplay style="display:none"></video>
 <video id="holoVideo" playsinline webkit-playsinline preload="auto" style="display:none">
   <source src="video-demo.mp4" type="video/mp4">
 </video>
 
-<!-- A-Frame scene: fog abilitata -->
-<a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;" fog="type: exponential; color: #000; density: 0.35">
-
-  <!-- camera feed -->
+<a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
   <a-sky id="cameraSky" color="#000"></a-sky>
 
-  <!-- ambient + directional + spotlight + pulsating point -->
+  <!-- luci -->
   <a-entity light="type: ambient; intensity: 0.45; color: #ff2222"></a-entity>
-  <a-entity id="dirLight" light="type: directional; intensity:0.6; color:#ffb2b2" position="0 4 -2"></a-entity>
-  <a-entity id="spotLight" light="type: spot; intensity:0.0; angle:25; penumbra:0.3; color:#ffffff" position="0 3 0" rotation="-90 0 0"></a-entity>
-  <a-entity id="pulseLight" light="type: point; intensity:0.6; color:#ff2222; distance:8" position="0 2.6 -1.5"></a-entity>
+  <a-entity id="pulseLight" light="type: point; intensity:0.6; color:#ff2222; distance:12" position="0 3 0"></a-entity>
 
-  <!-- particle root -->
+  <!-- container per particelle/sfere/fumo -->
   <a-entity id="particles"></a-entity>
 
-  <!-- holographic text / logo -->
-  <a-entity id="holoText" position="0 2.6 -2" rotation="0 0 0">
-    <a-text value="EDUVERSE" align="center" width="4" color="#ff7a7a" opacity="0.9" shader="msdf" font="https://cdn.aframe.io/fonts/mozillavr.fnt"></a-text>
-  </a-entity>
-
-  <!-- luminous ring under QR (halo) -->
-  <a-ring id="qrHalo" position="0 1.08 -1.5" rotation="-90 0 0" radius-inner="0.6" radius-outer="1.1" material="shader: standard; color: #ff4b4b; transparent: true; opacity:0.18; emissive: #ff4b4b; emissiveIntensity: 0.8"></a-ring>
-
-  <!-- ITEMS (no look-at attribute in markup - set by JS to ensure front-facing) -->
+  <!-- items (icone) -->
   <a-image id="DonBosco" src="Don bosco.png" class="item"></a-image>
   <a-image id="Radio" src="Radio.png" class="item"></a-image>
   <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="item"></a-image>
@@ -59,15 +45,15 @@
   <a-image id="Dj" src="Dj.png" class="item"></a-image>
   <a-image id="Ballerino" src="Ballerino.png" class="item"></a-image>
 
-  <!-- QR (ancora più vicino) e video plane -->
-  <a-image id="qrCode" src="invito.png" position="0 1.05 -1.1" scale="1.15 1.15 1" class="center clickable"></a-image>
-  <a-video id="demoVideo" src="#holoVideo" position="0 1.05 -1.1" visible="false"></a-video>
+  <!-- QR e video (più vicino) -->
+  <a-image id="qrCode" src="invito.png" position="0 1.2 -1.2" scale="1.3 1.3 1" class="center clickable"></a-image>
+  <a-video id="demoVideo" src="#holoVideo" position="0 1.2 -1.2" visible="false"></a-video>
 
-  <!-- logos (visibilità gestita da JS) -->
-  <a-image id="replayLogo" src="replay.png" position="-0.6 1.05 -1.05" visible="false" scale="0.9 0.9 1" class="clickable"></a-image>
-  <a-image id="whatsappLogo" src="whatsapp.png" position="0.6 1.05 -1.05" visible="false" scale="0.9 0.9 1" class="clickable"></a-image>
+  <!-- loghi replay / whatsapp -->
+  <a-image id="replayLogo" src="replay.png" position="-0.9 1.2 -1.2" visible="false" scale="1.2 1.2 1" class="center clickable"></a-image>
+  <a-image id="whatsappLogo" src="whatsapp.png" position="0.9 1.2 -1.2" visible="false" scale="1.2 1.2 1" class="center clickable"></a-image>
 
-  <!-- camera rig -->
+  <!-- camera + cursor -->
   <a-entity id="cameraRig">
     <a-entity id="camera" camera look-controls position="0 1.6 0">
       <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
@@ -75,10 +61,8 @@
   </a-entity>
 </a-scene>
 
-<!-- audio di sottofondo -->
 <audio id="bgMusic" src="musica.mp3" loop preload="auto"></audio>
 
-<!-- fallback overlay -->
 <div id="videoTapOverlay" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:99999;">
   <div style="background:rgba(0,0,0,0.6);padding:20px;border-radius:12px;color:#fff;text-align:center;">
     <p>Tocca il centro per avviare il video</p>
