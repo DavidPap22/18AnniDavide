@@ -1,8 +1,8 @@
 /* Config */
-const ITEM_Y = 2.6;           // piano unico più alto del QR
-const ITEM_RADIUS = 2.0;      // raggio di posizionamento
-const ROTATION_UPDATE_MS = 200;
-const CREATE_ROOF = true;
+const ITEM_Y = 2.6;           // piano unico in cui mettere gli item (più alto del QR)
+const ITEM_RADIUS = 2.0;      // raggio cerchio items intorno alla camera
+const ROTATION_UPDATE_MS = 200;// quanto spesso riallineare la rotazione verso la camera
+const CREATE_ROOF = true;     // se true, crea tetto con le stesse sfere luminose del ground
 
 /* DOM */
 const startBtn = document.getElementById('startBtn');
@@ -24,16 +24,10 @@ const itemIds = ['DonBosco','Radio','EtnaEnsemble','Tromba','Catania','Eduverse'
 let bgSavedTime = 0;
 const wait = ms => new Promise(r=>setTimeout(r,ms));
 
-/* audio instances */
-const audioInstances = {}; // one Audio per item
+/* audio instances (one per item) to avoid duplicates */
+const audioInstances = {}; // { id: Audio }
 
-/* base positions + animation state */
-const itemState = {}; // { id: { base: {x,y,z}, phase, ampX, ampY, ampZ } }
-
-/* RAF control */
-let rafId = null;
-
-/* START */
+/* start */
 startBtn.addEventListener('click', async () => {
   try{ await bgMusic.play(); }catch(e){}
   startOverlay.style.display = 'none';
@@ -45,27 +39,29 @@ startBtn.addEventListener('click', async () => {
     return;
   }
 
-  // QR pos (più lontano ma non troppo)
-  qr.setAttribute('position','0 1.2 -1.8');
+  // QR più vicino, libero da ostacoli (ora leggermente più lontano che prima)
+  qr.setAttribute('position','0 1.2 -1.6');
   qr.setAttribute('scale','1.3 1.3 1');
-  demoVideo.setAttribute('position','0 1.2 -1.8');
-  replayLogo.setAttribute('position','-0.9 1.2 -1.8');
-  whatsappLogo.setAttribute('position','0.9 1.2 -1.8');
+  demoVideo.setAttribute('position','0 1.2 -1.6');
+  replayLogo.setAttribute('position','-0.9 1.2 -1.6');
+  whatsappLogo.setAttribute('position','0.9 1.2 -1.6');
 
-  // costruisci scena
+  // inizializza scena
   distributeItemsCircle(ITEM_RADIUS, ITEM_Y);
   createParticles(36);
   createSmoke(20);
   animateLight();
-  if(CREATE_ROOF) createRoofFromGround();
 
+  if (CREATE_ROOF) createRoofFromGround();
+
+  // start rotation updater to ensure items face camera frontally
   startRotationUpdater();
-  startItemOscillationLoop();
 
+  // interactions (QR, video, items, logos)
   setupInteractions();
 });
 
-/* CAMERA */
+/* --- camera handling --- */
 async function startCameraWithRetries(){
   cameraStreamEl.setAttribute('playsinline','');
   cameraStreamEl.setAttribute('webkit-playsinline','');
@@ -116,59 +112,49 @@ function forceSkyTextureUpdate(skyEl, duration=2000, interval=60){
   }, interval);
 }
 
-/* ITEMS: cerchio, stesse y, no spin; salviamo base pos + parametri per animazione custom */
+/* --- ITEMS: disposizione in cerchio su UN piano, oscillazione verticale + sway + pulse --- */
 function distributeItemsCircle(radius = 2.0, height = ITEM_Y){
   const count = itemIds.length;
   const angleStep = (2 * Math.PI) / count;
   itemIds.forEach((id, i) => {
     const el = document.getElementById(id);
     if(!el) return;
-    const angle = i * angleStep + (Math.random()*0.12 - 0.06);
+    const angle = i * angleStep + (Math.random()*0.12 - 0.06); // piccola casualità angolare
     const x = radius * Math.cos(angle);
     const z = radius * Math.sin(angle);
     const y = height;
+
+    // ensure visible and clickable, set material side to double so images never appear mirrored
+    el.setAttribute('visible', true);
+    el.setAttribute('class', 'item clickable');
+    el.setAttribute('material', 'shader: flat; side: double');
+
     el.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
     el.setAttribute('scale', '1 1 1');
-    el.removeAttribute('look-at');
-    el.classList.add('clickable');
 
-    // store base state for manual animation
-    itemState[id] = {
-      base: { x, y, z },
-      phase: Math.random()*Math.PI*2,
-      ampX: 0.03 + Math.random()*0.03,
-      ampY: 0.04 + Math.random()*0.03,
-      ampZ: 0.02 + Math.random()*0.02,
-      speed: 0.8 + Math.random()*0.8
-    };
+    // oscillazione verticale leggera
+    const amp = 0.06 + Math.random()*0.04;
+    const dur = 1600 + Math.random()*1600;
+    el.setAttribute('animation__float', `property: position; to: ${x.toFixed(3)} ${(y + amp).toFixed(3)} ${z.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
+
+    // piccola oscillazione X/Z (sway) per dare dinamicità
+    const swayAmp = 0.03 + Math.random()*0.03;
+    const swayDur = 3000 + Math.random()*2000;
+    const tx = (x + swayAmp).toFixed(3);
+    const tz = (z + swayAmp).toFixed(3);
+    el.setAttribute('animation__sway', `property: position; to: ${tx} ${y.toFixed(3)} ${tz}; dur: ${swayDur}; dir: alternate; loop: true; easing: easeInOutSine`);
+
+    // pulsazione (scale)
+    const scaleTo = 1.12 + Math.random()*0.06;
+    const pulseDur = 1200 + Math.random()*800;
+    el.setAttribute('animation__pulse', `property: scale; to: ${scaleTo} ${scaleTo} ${scaleTo}; dur: ${pulseDur}; dir: alternate; loop: true; easing: easeInOutSine`);
+
+    // lenta rotazione su Y (cosmetica)
+    el.setAttribute('animation__spin', `property: rotation; to: 0 360 0; dur: ${12000 + Math.random()*8000}; loop: true; easing: linear`);
   });
 }
 
-/* RAF loop: applica oscillazioni leggere senza influire sulla rotazione Y calcolata */
-let lastTime = performance.now();
-function startItemOscillationLoop(){
-  if(rafId) cancelAnimationFrame(rafId);
-  function loop(t){
-    const dt = (t - lastTime) / 1000;
-    lastTime = t;
-    const now = t / 1000;
-    for(const id of itemIds){
-      const el = document.getElementById(id);
-      if(!el) continue;
-      const s = itemState[id];
-      if(!s) continue;
-      const px = s.base.x + Math.sin(now * s.speed + s.phase) * s.ampX;
-      const py = s.base.y + Math.sin((now * s.speed * 1.1) + s.phase*1.3) * s.ampY;
-      const pz = s.base.z + Math.cos(now * s.speed * 0.9 + s.phase*0.7) * s.ampZ;
-      // set position directly (three.js object3D will update)
-      el.setAttribute('position', `${px.toFixed(4)} ${py.toFixed(4)} ${pz.toFixed(4)}`);
-    }
-    rafId = requestAnimationFrame(loop);
-  }
-  rafId = requestAnimationFrame(loop);
-}
-
-/* ROTATION: manteniamo Y verso la camera (frontalmente leggibile); aggiornamento periodico */
+/* --- calcola e imposta rotazione Y in modo che la faccia "frontale" degli item punti alla camera --- */
 let rotationUpdaterInterval = null;
 function startRotationUpdater(){
   updateItemsRotationToCamera();
@@ -186,16 +172,16 @@ function updateItemsRotationToCamera(){
     if(!el || !el.object3D) return;
     const objPos = new THREE.Vector3();
     el.object3D.getWorldPosition(objPos);
-
     const dx = camPos.x - objPos.x;
     const dz = camPos.z - objPos.z;
     const rotYrad = Math.atan2(dx, dz);
     const rotYdeg = THREE.Math.radToDeg(rotYrad);
+    // manteniamo X e Z a 0
     el.setAttribute('rotation', `0 ${rotYdeg.toFixed(3)} 0`);
   });
 }
 
-/* PARTICLES / SMOKE / ROOF */
+/* --- PARTICLES E FUMO --- */
 function createParticles(count = 32){
   const root = document.getElementById('particles');
   while(root.firstChild) root.removeChild(root.firstChild);
@@ -215,6 +201,8 @@ function createParticles(count = 32){
     root.appendChild(s);
   }
 }
+
+/* smoke (cylinders ascendenti) */
 function createSmoke(count = 20){
   const root = document.getElementById('particles');
   for(let i=0;i<count;i++){
@@ -231,14 +219,16 @@ function createSmoke(count = 20){
     root.appendChild(e);
   }
 }
+
+/* --- CREA TETTO CON LE STESSE SFERE PRESENTI A TERRA --- */
 function createRoofFromGround(){
   const root = document.getElementById('particles');
   const children = Array.from(root.children);
   const roofContainer = document.createElement('a-entity');
-  roofContainer.setAttribute('id','roofContainer');
-  children.forEach(child=>{
+  roofContainer.setAttribute('id', 'roofContainer');
+  children.forEach((child) => {
     if(child.tagName.toLowerCase() === 'a-sphere'){
-      const pos = (child.getAttribute('position') || '0 1 0').split(' ').map(n=>parseFloat(n));
+      const pos = child.getAttribute('position').split(' ').map(n => parseFloat(n));
       const radius = child.getAttribute('radius') || 0.04;
       const color = child.getAttribute('color') || '#ff2b2b';
       const s = document.createElement('a-sphere');
@@ -256,44 +246,55 @@ function createRoofFromGround(){
   document.querySelector('a-scene').appendChild(roofContainer);
 }
 
-/* LIGHT */
+/* --- LUCE PULSANTE --- */
 function animateLight(){
   const light = document.getElementById('pulseLight');
   if(!light) return;
   light.setAttribute('animation__pulse', 'property: light.intensity; from: 0.35; to: 1.1; dur: 1200; dir: alternate; loop: true; easing: easeInOutSine');
 }
 
-/* INTERACTIONS: QR, video, logos, items (audio single-instance protection) */
+/* --- INTERAZIONI: QR, video, logos, items --- */
 function setupInteractions(){
   preserveVideoAspect();
 
-  // logos inizialmente invisibili
+  // inizialmente disabilitiamo i loghi
   replayLogo.setAttribute('visible', false);
   whatsappLogo.setAttribute('visible', false);
   replayLogo.classList.remove('clickable');
   whatsappLogo.classList.remove('clickable');
 
-  qr.addEventListener('click', async ()=>{
+  qr.addEventListener('click', async () => {
     qr.setAttribute('visible', false);
     demoVideo.setAttribute('visible', true);
-    try { await holoVideo.play(); try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){} } catch(e){ videoTapOverlay.style.display = 'flex'; }
+    try {
+      await holoVideo.play();
+      try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+    } catch (err) {
+      videoTapOverlay.style.display = 'flex';
+    }
   });
 
-  tapToPlay && tapToPlay.addEventListener('click', async ()=>{
+  tapToPlay && tapToPlay.addEventListener('click', async () => {
     videoTapOverlay.style.display = 'none';
-    try { await holoVideo.play(); try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){} } catch(e){ alert('Impossibile avviare il video'); }
+    try {
+      await holoVideo.play();
+      try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+    } catch(err) {
+      alert('Impossibile avviare il video.');
+    }
   });
 
-  holoVideo.addEventListener('ended', ()=>{
+  holoVideo.addEventListener('ended', () => {
     demoVideo.setAttribute('visible', false);
     replayLogo.setAttribute('visible', true);
     whatsappLogo.setAttribute('visible', true);
     replayLogo.classList.add('clickable');
     whatsappLogo.classList.add('clickable');
-    try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
+    try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
   });
 
-  replayLogo.addEventListener('click', async ()=>{
+  // replay
+  replayLogo.addEventListener('click', async () => {
     const vis = replayLogo.getAttribute('visible');
     if(!vis) return;
     replayLogo.setAttribute('visible', false);
@@ -301,15 +302,17 @@ function setupInteractions(){
     replayLogo.classList.remove('clickable');
     whatsappLogo.classList.remove('clickable');
     demoVideo.setAttribute('visible', true);
-    try{ await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ videoTapOverlay.style.display='flex'; }
+    try { await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ videoTapOverlay.style.display = 'flex'; }
   });
 
-  whatsappLogo.addEventListener('click', ()=>{
+  // whatsapp
+  whatsappLogo.addEventListener('click', () => {
     const vis = whatsappLogo.getAttribute('visible');
     if(!vis) return;
     window.open('https://wa.me/1234567890', '_blank');
   });
 
+  // items clicks (audio / links). Prevent duplicate plays using audioInstances.
   const audioMap = { 'Radio':'radio.mp3', 'Fantacalcio':'fantacalcio.mp3', 'Dj':'dj.mp3' };
   const linkMap = {
     'DonBosco':'https://www.instagram.com/giovani_animatori_trecastagni/',
@@ -318,18 +321,25 @@ function setupInteractions(){
     'Eduverse':'https://www.instagram.com/eduverse___/'
   };
 
-  itemIds.forEach(id=>{
+  // attach listeners (safe: id elements exist)
+  itemIds.forEach(id => {
     const el = document.getElementById(id);
     if(!el) return;
-    el.classList.add('clickable');
-    el.addEventListener('click', ()=>{
+    // remove previous listeners to avoid duplicates (defensive)
+    el.replaceWith(el.cloneNode(true));
+    const newEl = document.getElementById(id) || document.querySelector(`#${id}`);
+    // ensure clickable class remains
+    newEl.setAttribute('class', 'item clickable');
+    // ensure material side double so front always readable
+    newEl.setAttribute('material', 'shader: flat; side: double');
+
+    newEl.addEventListener('click', () => {
+      // audio items (single instance)
       if(audioMap[id]){
-        // single-instance play
+        // if already playing, ignore
+        const existing = audioInstances[id];
+        if(existing && !existing.paused && !existing.ended) return;
         let a = audioInstances[id];
-        if(a && !a.paused && !a.ended){
-          // already playing -> ignore
-          return;
-        }
         if(!a){
           a = new Audio(audioMap[id]);
           a.preload = 'auto';
@@ -338,19 +348,23 @@ function setupInteractions(){
           try{ a.currentTime = 0; }catch(e){}
         }
         try{ a.play(); }catch(e){ console.warn('audio play blocked', e); }
-        try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){}
-        a.onended = ()=>{ try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); }catch(e){} };
+        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+        a.onended = () => { try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){} };
         return;
       }
+
+      // special links
       if(id === 'Tromba'){ window.open('https://youtu.be/AMK10N6wwHM','_blank'); return; }
       if(id === 'Ballerino'){ window.open('https://youtu.be/JS_BY3LRBqw','_blank'); return; }
       if(linkMap[id]){ window.open(linkMap[id], '_blank'); return; }
-      window.open('https://instagram.com','_blank');
+
+      // fallback
+      window.open('https://instagram.com', '_blank');
     });
   });
 }
 
-/* VIDEO ASPECT */
+/* --- mantieni corretta l'aspect ratio del piano video a-video --- */
 function preserveVideoAspect(){
   const src = holoVideo.querySelector('source') ? holoVideo.querySelector('source').src : holoVideo.src;
   if(!src) return;
@@ -359,12 +373,14 @@ function preserveVideoAspect(){
   probe.src = src;
   probe.muted = true;
   probe.playsInline = true;
-  probe.addEventListener('loadedmetadata', ()=>{
+  probe.addEventListener('loadedmetadata', () => {
     const w = probe.videoWidth, h = probe.videoHeight;
     if(w && h){
       const aspect = w / h;
       const baseH = 1.0;
-      demoVideo.setAttribute('scale', `${(baseH * aspect)} ${baseH} 1`);
+      const sx = baseH * aspect;
+      const sy = baseH;
+      demoVideo.setAttribute('scale', `${sx} ${sy} 1`);
     }
   });
   probe.load();

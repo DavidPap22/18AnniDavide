@@ -19,6 +19,4 @@ a-scene{width:100vw;height:100vh;display:block}
 .center{cursor:pointer}
 .item{cursor:pointer}
 
-/* rendi le immagini un po' più leggibili su background vari */
-a-image.item{shader:flat}
 #videoTapOverlay{display:flex}
