@@ -1,11 +1,11 @@
 /* Config */
-const ITEM_Y = 2.6;           // piano unico in cui mettere gli item (più alto del QR)
-const ITEM_RADIUS = 2.0;      // raggio cerchio items intorno alla camera
-const ROTATION_UPDATE_MS = 200;// quanto spesso riallineare la rotazione verso la camera
-const CREATE_ROOF = true;     // se true, crea tetto con le stesse sfere luminose del ground
-const CREATE_FLOOR = true;    // se true, crea pavimento con le sfere
+const ITEM_Y = 2.6;
+const ITEM_RADIUS = 2.0;
+const ROTATION_UPDATE_MS = 200;
+const CREATE_ROOF = true;
+const CREATE_FLOOR = true;
 
-/* DOM */
+/* DOM refs */
 const startBtn = document.getElementById('startBtn');
 const startOverlay = document.getElementById('startOverlay');
 const bgMusic = document.getElementById('bgMusic');
@@ -25,45 +25,36 @@ const itemIds = ['DonBosco','Radio','EtnaEnsemble','Tromba','Catania','Eduverse'
 let bgSavedTime = 0;
 const wait = ms => new Promise(r=>setTimeout(r,ms));
 
-/* audio instances (one per item) to avoid duplicates */
-const audioInstances = {}; // { id: Audio }
+/* audio singletons + handler registry */
+const audioInstances = {};
+const handlerRegistry = {}; // { id: handlerFunction }
 
-/* start */
+/* START */
 startBtn.addEventListener('click', async () => {
   try{ await bgMusic.play(); }catch(e){}
   startOverlay.style.display = 'none';
+  try{ await startCameraWithRetries(); } catch(e){ alert('Impossibile avviare la fotocamera. Controlla permessi/HTTPS.'); return; }
 
-  try {
-    await startCameraWithRetries();
-  } catch (err) {
-    alert('Impossibile avviare la fotocamera. Controlla permessi/HTTPS.');
-    return;
-  }
-
-  // QR più vicino, libero da ostacoli (ora leggermente più lontano che prima)
+  // QR slightly further
   qr.setAttribute('position','0 1.2 -1.6');
   qr.setAttribute('scale','1.3 1.3 1');
   demoVideo.setAttribute('position','0 1.2 -1.6');
   replayLogo.setAttribute('position','-0.9 1.2 -1.6');
   whatsappLogo.setAttribute('position','0.9 1.2 -1.6');
 
-  // inizializza scena
+  // init scene
   distributeItemsCircle(ITEM_RADIUS, ITEM_Y);
   createParticles(36);
   createSmoke(20);
   animateLight();
+  if(CREATE_ROOF) createRoofFromGround();
+  if(CREATE_FLOOR) createFloorFromGround();
 
-  if (CREATE_ROOF) createRoofFromGround();
-  if (CREATE_FLOOR) createFloorFromGround();
-
-  // start rotation updater to ensure items face camera frontally
   startRotationUpdater();
-
-  // interactions (QR, video, items, logos)
   setupInteractions();
 });
 
-/* --- camera handling --- */
+/* CAMERA */
 async function startCameraWithRetries(){
   cameraStreamEl.setAttribute('playsinline','');
   cameraStreamEl.setAttribute('webkit-playsinline','');
@@ -77,28 +68,23 @@ async function startCameraWithRetries(){
     { video: { facingMode: 'environment' }, audio: false },
     { video: true, audio: false }
   ];
-
-  let lastErr = null, stream = null;
-  for (const c of attempts){
-    try{ stream = await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr = e; await wait(180); }
+  let lastErr=null, stream=null;
+  for(const c of attempts){
+    try{ stream = await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; await wait(180); }
   }
-  if(!stream) throw lastErr || new Error('Nessuno stream');
-
+  if(!stream) throw lastErr||new Error('Nessuno stream');
   cameraStreamEl.srcObject = stream;
   cameraStreamEl.muted = true;
   cameraStreamEl.playsInline = true;
-  try { await cameraStreamEl.play(); } catch(e){ /* ignore */ }
-
-  await new Promise(r => {
-    let done = false;
-    function onPlay(){ if(done) return; done = true; cameraStreamEl.removeEventListener('playing', onPlay); r(); }
+  try { await cameraStreamEl.play(); }catch(e){}
+  await new Promise(r=>{
+    let done=false;
+    function onPlay(){ if(done) return; done=true; cameraStreamEl.removeEventListener('playing', onPlay); r(); }
     cameraStreamEl.addEventListener('playing', onPlay);
-    setTimeout(()=>{ if(!done){ done = true; cameraStreamEl.removeEventListener('playing', onPlay); r(); }}, 1800);
+    setTimeout(()=>{ if(!done){ done=true; cameraStreamEl.removeEventListener('playing', onPlay); r(); }}, 1800);
   });
-
-  const sky = document.getElementById('cameraSky');
-  sky.setAttribute('material', 'shader: flat; src: #cameraStream');
-  forceSkyTextureUpdate(sky, 2200, 60);
+  document.getElementById('cameraSky').setAttribute('material','shader: flat; src: #cameraStream');
+  forceSkyTextureUpdate(document.getElementById('cameraSky'), 2200, 60);
 }
 function forceSkyTextureUpdate(skyEl, duration=2000, interval=60){
   const start = Date.now();
@@ -110,36 +96,33 @@ function forceSkyTextureUpdate(skyEl, duration=2000, interval=60){
         mesh.material.needsUpdate = true;
       }
     }catch(e){}
-    if(Date.now() - start > duration) clearInterval(tid);
+    if(Date.now()-start>duration) clearInterval(tid);
   }, interval);
 }
 
-/* --- ITEMS: disposizione in cerchio su UN piano, oscillazione verticale + sway + pulse --- */
-function distributeItemsCircle(radius = 2.0, height = ITEM_Y){
+/* ITEMS: circle layout + animations */
+function distributeItemsCircle(radius = ITEM_RADIUS, height = ITEM_Y){
   const count = itemIds.length;
-  const angleStep = (2 * Math.PI) / count;
-  itemIds.forEach((id, i) => {
+  const angleStep = (2*Math.PI)/count;
+  itemIds.forEach((id,i)=>{
     const el = document.getElementById(id);
     if(!el) return;
-    const angle = i * angleStep + (Math.random()*0.12 - 0.06); // piccola casualità angolare
+    const angle = i*angleStep + (Math.random()*0.12 - 0.06);
     const x = radius * Math.cos(angle);
     const z = radius * Math.sin(angle);
     const y = height;
 
-    // ensure visible and clickable, set material side to double so images never appear mirrored
     el.setAttribute('visible', true);
     el.setAttribute('class', 'item clickable');
-    el.setAttribute('material', 'shader: flat; side: double');
+    el.setAttribute('material', 'shader: flat; side: double; transparent: true');
 
     el.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
-    el.setAttribute('scale', '1 1 1');
+    el.setAttribute('scale','1 1 1');
 
-    // oscillazione verticale leggera
     const amp = 0.06 + Math.random()*0.04;
     const dur = 1600 + Math.random()*1600;
-    el.setAttribute('animation__float', `property: position; to: ${x.toFixed(3)} ${(y + amp).toFixed(3)} ${z.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
+    el.setAttribute('animation__float', `property: position; to: ${x.toFixed(3)} ${(y+amp).toFixed(3)} ${z.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
 
-    // piccola oscillazione X/Z (sway) per dare dinamicità (uso valori leggermente diversi per X e Z)
     const swayAmpX = 0.02 + Math.random()*0.04;
     const swayAmpZ = 0.02 + Math.random()*0.04;
     const swayDur = 3000 + Math.random()*2000;
@@ -147,17 +130,15 @@ function distributeItemsCircle(radius = 2.0, height = ITEM_Y){
     const tz1 = (z + swayAmpZ).toFixed(3);
     el.setAttribute('animation__sway', `property: position; to: ${tx1} ${y.toFixed(3)} ${tz1}; dur: ${swayDur}; dir: alternate; loop: true; easing: easeInOutSine`);
 
-    // pulsazione (scale)
     const scaleTo = 1.08 + Math.random()*0.08;
     const pulseDur = 1200 + Math.random()*800;
     el.setAttribute('animation__pulse', `property: scale; to: ${scaleTo} ${scaleTo} ${scaleTo}; dur: ${pulseDur}; dir: alternate; loop: true; easing: easeInOutSine`);
 
-    // lenta rotazione su Y (cosmetica)
     el.setAttribute('animation__spin', `property: rotation; to: 0 360 0; dur: ${12000 + Math.random()*8000}; loop: true; easing: linear`);
   });
 }
 
-/* --- calcola e imposta rotazione Y in modo che la faccia "frontale" degli item punti alla camera --- */
+/* ROTATION updater to keep items facing camera (front) */
 let rotationUpdaterInterval = null;
 function startRotationUpdater(){
   updateItemsRotationToCamera();
@@ -165,11 +146,10 @@ function startRotationUpdater(){
   rotationUpdaterInterval = setInterval(updateItemsRotationToCamera, ROTATION_UPDATE_MS);
 }
 function updateItemsRotationToCamera(){
-  const cameraEl = document.getElementById('camera');
-  if(!cameraEl || !cameraEl.object3D) return;
+  const camEl = document.getElementById('camera');
+  if(!camEl || !camEl.object3D) return;
   const camPos = new THREE.Vector3();
-  cameraEl.object3D.getWorldPosition(camPos);
-
+  camEl.object3D.getWorldPosition(camPos);
   itemIds.forEach(id=>{
     const el = document.getElementById(id);
     if(!el || !el.object3D) return;
@@ -183,15 +163,15 @@ function updateItemsRotationToCamera(){
   });
 }
 
-/* --- PARTICLES E FUMO --- */
-function createParticles(count = 32){
+/* PARTICLES & SMOKE */
+function createParticles(count=32){
   const root = document.getElementById('particles');
   while(root.firstChild) root.removeChild(root.firstChild);
   for(let i=0;i<count;i++){
     const s = document.createElement('a-sphere');
-    const px = (Math.random()*2 - 1) * 3;
+    const px = (Math.random()*2 -1) * 3;
     const py = Math.random()*2 + 0.8;
-    const pz = (Math.random()*2 - 1) * 3;
+    const pz = (Math.random()*2 -1) * 3;
     s.setAttribute('position', `${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);
     s.setAttribute('radius', (0.03 + Math.random()*0.04).toFixed(3));
     s.setAttribute('color', '#ff2b2b');
@@ -203,15 +183,13 @@ function createParticles(count = 32){
     root.appendChild(s);
   }
 }
-
-/* smoke (cylinders ascendenti) */
-function createSmoke(count = 20){
+function createSmoke(count=20){
   const root = document.getElementById('particles');
   for(let i=0;i<count;i++){
     const e = document.createElement('a-cylinder');
-    const px = (Math.random()*2 - 1) * 3;
+    const px = (Math.random()*2 -1)*3;
     const py = 0.5 + Math.random()*2.0;
-    const pz = (Math.random()*2 - 1) * 3;
+    const pz = (Math.random()*2 -1)*3;
     e.setAttribute('position', `${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);
     e.setAttribute('radius', 0.03);
     e.setAttribute('height', (0.7 + Math.random()*0.5).toFixed(3));
@@ -222,20 +200,19 @@ function createSmoke(count = 20){
   }
 }
 
-/* --- CREA TETTO CON LE STESSE SFERE PRESENTI A TERRA --- */
+/* ROOF and FLOOR clones using existing spheres */
 function createRoofFromGround(){
   const root = document.getElementById('particles');
   const children = Array.from(root.children);
   const roofContainer = document.createElement('a-entity');
-  roofContainer.setAttribute('id', 'roofContainer');
-  children.forEach((child) => {
+  roofContainer.setAttribute('id','roofContainer');
+  children.forEach(child=>{
     if(child.tagName.toLowerCase() === 'a-sphere'){
-      const pos = child.getAttribute('position').split(' ').map(n => parseFloat(n));
+      const pos = child.getAttribute('position').split(' ').map(Number);
       const radius = child.getAttribute('radius') || 0.04;
       const color = child.getAttribute('color') || '#ff2b2b';
       const s = document.createElement('a-sphere');
-      const x = pos[0];
-      const z = pos[2];
+      const x = pos[0], z = pos[2];
       const roofY = 3.2 + (Math.random()*0.3 - 0.15);
       s.setAttribute('position', `${x.toFixed(3)} ${roofY.toFixed(3)} ${z.toFixed(3)}`);
       s.setAttribute('radius', radius);
@@ -247,22 +224,19 @@ function createRoofFromGround(){
   });
   document.querySelector('a-scene').appendChild(roofContainer);
 }
-
-/* --- CREA PAVIMENTO (cloni delle sfere, basso) --- */
 function createFloorFromGround(){
   const root = document.getElementById('particles');
   const children = Array.from(root.children);
   const floorContainer = document.createElement('a-entity');
-  floorContainer.setAttribute('id', 'floorContainer');
-  children.forEach((child) => {
+  floorContainer.setAttribute('id','floorContainer');
+  children.forEach(child=>{
     if(child.tagName.toLowerCase() === 'a-sphere'){
-      const pos = child.getAttribute('position').split(' ').map(n => parseFloat(n));
+      const pos = child.getAttribute('position').split(' ').map(Number);
       const radius = child.getAttribute('radius') || 0.04;
       const color = child.getAttribute('color') || '#ff2b2b';
       const s = document.createElement('a-sphere');
-      const x = pos[0];
-      const z = pos[2];
-      const floorY = 0.35 + (Math.random()*0.07 - 0.035); // basso, vicino al suolo
+      const x = pos[0], z = pos[2];
+      const floorY = 0.35 + (Math.random()*0.07 - 0.035);
       s.setAttribute('position', `${x.toFixed(3)} ${floorY.toFixed(3)} ${z.toFixed(3)}`);
       s.setAttribute('radius', radius);
       s.setAttribute('color', color);
@@ -275,55 +249,43 @@ function createFloorFromGround(){
   document.querySelector('a-scene').appendChild(floorContainer);
 }
 
-/* --- LUCE PULSANTE --- */
+/* ANIMATE LIGHT */
 function animateLight(){
   const light = document.getElementById('pulseLight');
   if(!light) return;
-  light.setAttribute('animation__pulse', 'property: light.intensity; from: 0.35; to: 1.1; dur: 1200; dir: alternate; loop: true; easing: easeInOutSine');
+  light.setAttribute('animation__pulse','property: light.intensity; from: 0.35; to: 1.1; dur: 1200; dir: alternate; loop: true; easing: easeInOutSine');
 }
 
-/* --- INTERAZIONI: QR, video, logos, items --- */
+/* INTERACTIONS: QR, playback, logos, items */
 function setupInteractions(){
   preserveVideoAspect();
 
-  // inizialmente disabilitiamo i loghi
   replayLogo.setAttribute('visible', false);
   whatsappLogo.setAttribute('visible', false);
   replayLogo.classList.remove('clickable');
   whatsappLogo.classList.remove('clickable');
 
-  qr.addEventListener('click', async () => {
+  qr.addEventListener('click', async()=>{
     qr.setAttribute('visible', false);
     demoVideo.setAttribute('visible', true);
-    try {
-      await holoVideo.play();
-      try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-    } catch (err) {
-      videoTapOverlay.style.display = 'flex';
-    }
+    try{ await holoVideo.play(); try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){} }catch(e){ videoTapOverlay.style.display='flex'; }
   });
 
-  tapToPlay && tapToPlay.addEventListener('click', async () => {
-    videoTapOverlay.style.display = 'none';
-    try {
-      await holoVideo.play();
-      try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-    } catch(err) {
-      alert('Impossibile avviare il video.');
-    }
+  tapToPlay && tapToPlay.addEventListener('click', async()=>{
+    videoTapOverlay.style.display='none';
+    try{ await holoVideo.play(); try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){} }catch(e){ alert('Impossibile avviare il video'); }
   });
 
-  holoVideo.addEventListener('ended', () => {
+  holoVideo.addEventListener('ended', ()=>{
     demoVideo.setAttribute('visible', false);
     replayLogo.setAttribute('visible', true);
     whatsappLogo.setAttribute('visible', true);
     replayLogo.classList.add('clickable');
     whatsappLogo.classList.add('clickable');
-    try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
+    try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); }catch(e){}
   });
 
-  // replay
-  replayLogo.addEventListener('click', async () => {
+  replayLogo.addEventListener('click', async ()=>{
     const vis = replayLogo.getAttribute('visible');
     if(!vis) return;
     replayLogo.setAttribute('visible', false);
@@ -331,17 +293,16 @@ function setupInteractions(){
     replayLogo.classList.remove('clickable');
     whatsappLogo.classList.remove('clickable');
     demoVideo.setAttribute('visible', true);
-    try { await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ videoTapOverlay.style.display = 'flex'; }
+    try{ await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){ videoTapOverlay.style.display='flex'; }
   });
 
-  // whatsapp
-  whatsappLogo.addEventListener('click', () => {
+  whatsappLogo.addEventListener('click', ()=>{
     const vis = whatsappLogo.getAttribute('visible');
     if(!vis) return;
     window.open('https://wa.me/1234567890', '_blank');
   });
 
-  // --- ITEMS: assegna listener in modo sicuro (un solo handler per item) ---
+  // audio and link maps
   const audioMap = { 'Radio':'radio.mp3', 'Fantacalcio':'fantacalcio.mp3', 'Dj':'dj.mp3' };
   const linkMap = {
     'DonBosco':'https://www.instagram.com/giovani_animatori_trecastagni/',
@@ -350,43 +311,38 @@ function setupInteractions(){
     'Eduverse':'https://www.instagram.com/eduverse___/'
   };
 
-  itemIds.forEach(id => {
+  // attach item handlers robustly via addEventListener, removing old handler if present
+  itemIds.forEach(id=>{
     const el = document.getElementById(id);
-    if(!el){
-      console.warn('Elemento non trovato:', id);
-      return;
-    }
+    if(!el){ console.warn('Elemento mancante:', id); return; }
 
-    // assicurati che l'elemento sia visibile/clickable e non abbia listener multipli
+    // ensure clickable & visible
     el.setAttribute('visible', true);
     el.setAttribute('class', 'item clickable');
-    el.setAttribute('material', 'shader: flat; side: double');
+    el.setAttribute('material', 'shader: flat; side: double; transparent: true');
 
-    // rimuovi eventuale onclick precedente (defensive)
-    el.onclick = null;
+    // remove previous handler if registered
+    if(handlerRegistry[id]){
+      el.removeEventListener('click', handlerRegistry[id]);
+      delete handlerRegistry[id];
+    }
 
-    // assegna un singolo handler usando onclick (garantisce un solo handler)
-    el.onclick = () => {
+    const handler = () => {
       console.log('CLICK su item:', id);
 
-      // audio single-instance
+      // audio single instance
       if(audioMap[id]){
         const existing = audioInstances[id];
         if(existing && !existing.paused && !existing.ended){
-          console.log('Audio già in riproduzione per', id, '- click ignorato');
+          console.log('Audio già in riproduzione per', id);
           return;
         }
         let a = audioInstances[id];
-        if(!a){
-          a = new Audio(audioMap[id]);
-          a.preload = 'auto';
-          audioInstances[id] = a;
-        } else {
-          try{ a.currentTime = 0; }catch(e){}
-        }
+        if(!a){ a = new Audio(audioMap[id]); a.preload='auto'; audioInstances[id]=a; }
+        else { try{ a.currentTime = 0; }catch(e){} }
         try{ a.play(); }catch(e){ console.warn('audio play blocked', e); }
-        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-        a.onended = () => { try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){} };
+        try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){}
+        a.onended = ()=>{ try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); }catch(e){} };
         return;
       }
 
@@ -396,12 +352,15 @@ function setupInteractions(){
       if(linkMap[id]){ window.open(linkMap[id], '_blank'); return; }
 
       // fallback
-      window.open('https://instagram.com','_blank');
+      window.open('https://instagram.com', '_blank');
     };
+
+    el.addEventListener('click', handler);
+    handlerRegistry[id] = handler;
   });
 }
 
-/* --- mantieni corretta l'aspect ratio del piano video a-video --- */
+/* preserve video aspect */
 function preserveVideoAspect(){
   const src = holoVideo.querySelector('source') ? holoVideo.querySelector('source').src : holoVideo.src;
   if(!src) return;
@@ -410,10 +369,10 @@ function preserveVideoAspect(){
   probe.src = src;
   probe.muted = true;
   probe.playsInline = true;
-  probe.addEventListener('loadedmetadata', () => {
+  probe.addEventListener('loadedmetadata', ()=>{
     const w = probe.videoWidth, h = probe.videoHeight;
     if(w && h){
-      const aspect = w / h;
+      const aspect = w/h;
       const baseH = 1.0;
       const sx = baseH * aspect;
       const sy = baseH;
