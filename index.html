@@ -27,11 +27,9 @@
 <a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
   <a-sky id="cameraSky" color="#000"></a-sky>
 
-  <!-- lights -->
   <a-entity light="type: ambient; intensity: 0.45; color: #ff2222"></a-entity>
   <a-entity id="pulseLight" light="type: point; intensity:0.6; color:#ff2222; distance:12" position="0 3 0"></a-entity>
 
-  <!-- particles container -->
   <a-entity id="particles"></a-entity>
 
   <!-- items -->
@@ -45,7 +43,7 @@
   <a-image id="Dj" src="Dj.png" class="item"></a-image>
   <a-image id="Ballerino" src="Ballerino.png" class="item"></a-image>
 
-  <!-- QR and video -->
+  <!-- QR + video -->
   <a-image id="qrCode" src="invito.png" position="0 1.2 -1.6" scale="1.3 1.3 1" class="center clickable"></a-image>
   <a-video id="demoVideo" src="#holoVideo" position="0 1.2 -1.6" visible="false"></a-video>
 
@@ -53,10 +51,9 @@
   <a-image id="replayLogo" src="replay.png" position="-0.9 1.2 -1.6" visible="false" scale="1.2 1.2 1" class="center clickable"></a-image>
   <a-image id="whatsappLogo" src="whatsapp.png" position="0.9 1.2 -1.6" visible="false" scale="1.2 1.2 1" class="center clickable"></a-image>
 
-  <!-- camera + cursor (mouse/touch) -->
+  <!-- camera + cursor -->
   <a-entity id="cameraRig">
     <a-entity id="camera" camera look-controls position="0 1.6 0">
-      <!-- rayOrigin: mouse works for desktop and touch events triggered by taps -->
       <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
     </a-entity>
   </a-entity>

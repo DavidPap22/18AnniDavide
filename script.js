@@ -27,13 +27,25 @@ const wait = ms => new Promise(r=>setTimeout(r,ms));
 
 /* audio singletons + handler registry */
 const audioInstances = {};
-const handlerRegistry = {}; // { id: handlerFunction }
+const handlerRegistry = {}; // { id: { click:fn, mousedown:fn, touchstart:fn } }
 
-/* START */
+/* Start: wait for scene loaded before wiring interactions */
+const scene = document.querySelector('a-scene');
+scene.addEventListener('loaded', () => {
+  console.log('A-Frame scene loaded');
+});
+
+/* START button (user gesture) */
 startBtn.addEventListener('click', async () => {
-  try{ await bgMusic.play(); }catch(e){}
+  try { await bgMusic.play(); } catch(e){ /* ignore */ }
   startOverlay.style.display = 'none';
-  try{ await startCameraWithRetries(); } catch(e){ alert('Impossibile avviare la fotocamera. Controlla permessi/HTTPS.'); return; }
+
+  try {
+    await startCameraWithRetries();
+  } catch (err) {
+    alert('Impossibile avviare la fotocamera. Controlla permessi/HTTPS.');
+    return;
+  }
 
   // QR slightly further
   qr.setAttribute('position','0 1.2 -1.6');
@@ -42,7 +54,7 @@ startBtn.addEventListener('click', async () => {
   replayLogo.setAttribute('position','-0.9 1.2 -1.6');
   whatsappLogo.setAttribute('position','0.9 1.2 -1.6');
 
-  // init scene
+  // prepare scene visuals
   distributeItemsCircle(ITEM_RADIUS, ITEM_Y);
   createParticles(36);
   createSmoke(20);
@@ -50,11 +62,16 @@ startBtn.addEventListener('click', async () => {
   if(CREATE_ROOF) createRoofFromGround();
   if(CREATE_FLOOR) createFloorFromGround();
 
+  // ensure items initialized in A-Frame before attaching handlers:
+  // wait a tick for A-Frame to process attributes
+  await wait(80);
+
+  // start rotation updater & interactions
   startRotationUpdater();
   setupInteractions();
 });
 
-/* CAMERA */
+/* --- camera handling --- */
 async function startCameraWithRetries(){
   cameraStreamEl.setAttribute('playsinline','');
   cameraStreamEl.setAttribute('webkit-playsinline','');
@@ -68,23 +85,27 @@ async function startCameraWithRetries(){
     { video: { facingMode: 'environment' }, audio: false },
     { video: true, audio: false }
   ];
-  let lastErr=null, stream=null;
+  let lastErr = null, stream = null;
   for(const c of attempts){
     try{ stream = await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; await wait(180); }
   }
-  if(!stream) throw lastErr||new Error('Nessuno stream');
+  if(!stream) throw lastErr || new Error('Nessuno stream');
+
   cameraStreamEl.srcObject = stream;
   cameraStreamEl.muted = true;
   cameraStreamEl.playsInline = true;
-  try { await cameraStreamEl.play(); }catch(e){}
+  try { await cameraStreamEl.play(); } catch(e){ /* ignore */ }
+
   await new Promise(r=>{
     let done=false;
     function onPlay(){ if(done) return; done=true; cameraStreamEl.removeEventListener('playing', onPlay); r(); }
     cameraStreamEl.addEventListener('playing', onPlay);
     setTimeout(()=>{ if(!done){ done=true; cameraStreamEl.removeEventListener('playing', onPlay); r(); }}, 1800);
   });
-  document.getElementById('cameraSky').setAttribute('material','shader: flat; src: #cameraStream');
-  forceSkyTextureUpdate(document.getElementById('cameraSky'), 2200, 60);
+
+  const sky = document.getElementById('cameraSky');
+  sky.setAttribute('material', 'shader: flat; src: #cameraStream');
+  forceSkyTextureUpdate(sky, 2200, 60);
 }
 function forceSkyTextureUpdate(skyEl, duration=2000, interval=60){
   const start = Date.now();
@@ -100,8 +121,8 @@ function forceSkyTextureUpdate(skyEl, duration=2000, interval=60){
   }, interval);
 }
 
-/* ITEMS: circle layout + animations */
-function distributeItemsCircle(radius = ITEM_RADIUS, height = ITEM_Y){
+/* ITEMS layout & animation */
+function distributeItemsCircle(radius = 2.0, height = ITEM_Y){
   const count = itemIds.length;
   const angleStep = (2*Math.PI)/count;
   itemIds.forEach((id,i)=>{
@@ -119,6 +140,7 @@ function distributeItemsCircle(radius = ITEM_RADIUS, height = ITEM_Y){
     el.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
     el.setAttribute('scale','1 1 1');
 
+    // float, sway, pulse & spin
     const amp = 0.06 + Math.random()*0.04;
     const dur = 1600 + Math.random()*1600;
     el.setAttribute('animation__float', `property: position; to: ${x.toFixed(3)} ${(y+amp).toFixed(3)} ${z.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
@@ -138,7 +160,7 @@ function distributeItemsCircle(radius = ITEM_RADIUS, height = ITEM_Y){
   });
 }
 
-/* ROTATION updater to keep items facing camera (front) */
+/* Rotation updater so "front" faces camera */
 let rotationUpdaterInterval = null;
 function startRotationUpdater(){
   updateItemsRotationToCamera();
@@ -163,7 +185,7 @@ function updateItemsRotationToCamera(){
   });
 }
 
-/* PARTICLES & SMOKE */
+/* Particles & smoke */
 function createParticles(count=32){
   const root = document.getElementById('particles');
   while(root.firstChild) root.removeChild(root.firstChild);
@@ -200,7 +222,7 @@ function createSmoke(count=20){
   }
 }
 
-/* ROOF and FLOOR clones using existing spheres */
+/* Roof & floor clones of spheres */
 function createRoofFromGround(){
   const root = document.getElementById('particles');
   const children = Array.from(root.children);
@@ -249,29 +271,30 @@ function createFloorFromGround(){
   document.querySelector('a-scene').appendChild(floorContainer);
 }
 
-/* ANIMATE LIGHT */
+/* Animate light */
 function animateLight(){
   const light = document.getElementById('pulseLight');
   if(!light) return;
   light.setAttribute('animation__pulse','property: light.intensity; from: 0.35; to: 1.1; dur: 1200; dir: alternate; loop: true; easing: easeInOutSine');
 }
 
-/* INTERACTIONS: QR, playback, logos, items */
+/* Interactions robust: attach click/mousedown/touchstart after scene ready */
 function setupInteractions(){
   preserveVideoAspect();
 
+  // disable logos initially
   replayLogo.setAttribute('visible', false);
   whatsappLogo.setAttribute('visible', false);
   replayLogo.classList.remove('clickable');
   whatsappLogo.classList.remove('clickable');
 
-  qr.addEventListener('click', async()=>{
+  qr.addEventListener('click', async ()=>{
     qr.setAttribute('visible', false);
     demoVideo.setAttribute('visible', true);
     try{ await holoVideo.play(); try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){} }catch(e){ videoTapOverlay.style.display='flex'; }
   });
 
-  tapToPlay && tapToPlay.addEventListener('click', async()=>{
+  tapToPlay && tapToPlay.addEventListener('click', async ()=>{
     videoTapOverlay.style.display='none';
     try{ await holoVideo.play(); try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){} }catch(e){ alert('Impossibile avviare il video'); }
   });
@@ -302,7 +325,6 @@ function setupInteractions(){
     window.open('https://wa.me/1234567890', '_blank');
   });
 
-  // audio and link maps
   const audioMap = { 'Radio':'radio.mp3', 'Fantacalcio':'fantacalcio.mp3', 'Dj':'dj.mp3' };
   const linkMap = {
     'DonBosco':'https://www.instagram.com/giovani_animatori_trecastagni/',
@@ -311,26 +333,32 @@ function setupInteractions(){
     'Eduverse':'https://www.instagram.com/eduverse___/'
   };
 
-  // attach item handlers robustly via addEventListener, removing old handler if present
+  // attach item handlers robustly (click + touch)
   itemIds.forEach(id=>{
     const el = document.getElementById(id);
     if(!el){ console.warn('Elemento mancante:', id); return; }
 
-    // ensure clickable & visible
+    // ensure visible & clickable & double-sided
     el.setAttribute('visible', true);
     el.setAttribute('class', 'item clickable');
     el.setAttribute('material', 'shader: flat; side: double; transparent: true');
 
-    // remove previous handler if registered
+    // remove old handlers if present
     if(handlerRegistry[id]){
-      el.removeEventListener('click', handlerRegistry[id]);
+      const reg = handlerRegistry[id];
+      if(reg.click) el.removeEventListener('click', reg.click);
+      if(reg.mousedown) el.removeEventListener('mousedown', reg.mousedown);
+      if(reg.touchstart) el.removeEventListener('touchstart', reg.touchstart);
       delete handlerRegistry[id];
     }
 
-    const handler = () => {
+    // single shared function (keeps user gesture context)
+    const handler = (evt) => {
+      // prevent multiple pointer events bubbling
+      evt && evt.stopPropagation && evt.stopPropagation();
       console.log('CLICK su item:', id);
 
-      // audio single instance
+      // audio single-instance
       if(audioMap[id]){
         const existing = audioInstances[id];
         if(existing && !existing.paused && !existing.ended){
@@ -352,11 +380,19 @@ function setupInteractions(){
       if(linkMap[id]){ window.open(linkMap[id], '_blank'); return; }
 
       // fallback
-      window.open('https://instagram.com', '_blank');
+      window.open('https://instagram.com','_blank');
     };
 
-    el.addEventListener('click', handler);
-    handlerRegistry[id] = handler;
+    // create wrappers for different event types to be able to remove them later
+    const onClick = (e)=> handler(e);
+    const onDown = (e)=> handler(e);
+    const onTouch = (e)=> handler(e);
+
+    el.addEventListener('click', onClick);
+    el.addEventListener('mousedown', onDown);
+    el.addEventListener('touchstart', onTouch, {passive:true});
+
+    handlerRegistry[id] = { click: onClick, mousedown: onDown, touchstart: onTouch };
   });
 }
 
