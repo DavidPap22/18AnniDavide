@@ -3,6 +3,7 @@ const ITEM_Y = 2.6;           // piano unico in cui mettere gli item (più alto 
 const ITEM_RADIUS = 2.0;      // raggio cerchio items intorno alla camera
 const ROTATION_UPDATE_MS = 200;// quanto spesso riallineare la rotazione verso la camera
 const CREATE_ROOF = true;     // se true, crea tetto con le stesse sfere luminose del ground
+const CREATE_FLOOR = true;    // se true, crea pavimento con le sfere
 
 /* DOM */
 const startBtn = document.getElementById('startBtn');
@@ -53,6 +54,7 @@ startBtn.addEventListener('click', async () => {
   animateLight();
 
   if (CREATE_ROOF) createRoofFromGround();
+  if (CREATE_FLOOR) createFloorFromGround();
 
   // start rotation updater to ensure items face camera frontally
   startRotationUpdater();
@@ -137,15 +139,16 @@ function distributeItemsCircle(radius = 2.0, height = ITEM_Y){
     const dur = 1600 + Math.random()*1600;
     el.setAttribute('animation__float', `property: position; to: ${x.toFixed(3)} ${(y + amp).toFixed(3)} ${z.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
 
-    // piccola oscillazione X/Z (sway) per dare dinamicità
-    const swayAmp = 0.03 + Math.random()*0.03;
+    // piccola oscillazione X/Z (sway) per dare dinamicità (uso valori leggermente diversi per X e Z)
+    const swayAmpX = 0.02 + Math.random()*0.04;
+    const swayAmpZ = 0.02 + Math.random()*0.04;
     const swayDur = 3000 + Math.random()*2000;
-    const tx = (x + swayAmp).toFixed(3);
-    const tz = (z + swayAmp).toFixed(3);
-    el.setAttribute('animation__sway', `property: position; to: ${tx} ${y.toFixed(3)} ${tz}; dur: ${swayDur}; dir: alternate; loop: true; easing: easeInOutSine`);
+    const tx1 = (x + swayAmpX).toFixed(3);
+    const tz1 = (z + swayAmpZ).toFixed(3);
+    el.setAttribute('animation__sway', `property: position; to: ${tx1} ${y.toFixed(3)} ${tz1}; dur: ${swayDur}; dir: alternate; loop: true; easing: easeInOutSine`);
 
     // pulsazione (scale)
-    const scaleTo = 1.12 + Math.random()*0.06;
+    const scaleTo = 1.08 + Math.random()*0.08;
     const pulseDur = 1200 + Math.random()*800;
     el.setAttribute('animation__pulse', `property: scale; to: ${scaleTo} ${scaleTo} ${scaleTo}; dur: ${pulseDur}; dir: alternate; loop: true; easing: easeInOutSine`);
 
@@ -176,7 +179,6 @@ function updateItemsRotationToCamera(){
     const dz = camPos.z - objPos.z;
     const rotYrad = Math.atan2(dx, dz);
     const rotYdeg = THREE.Math.radToDeg(rotYrad);
-    // manteniamo X e Z a 0
     el.setAttribute('rotation', `0 ${rotYdeg.toFixed(3)} 0`);
   });
 }
@@ -246,6 +248,33 @@ function createRoofFromGround(){
   document.querySelector('a-scene').appendChild(roofContainer);
 }
 
+/* --- CREA PAVIMENTO (cloni delle sfere, basso) --- */
+function createFloorFromGround(){
+  const root = document.getElementById('particles');
+  const children = Array.from(root.children);
+  const floorContainer = document.createElement('a-entity');
+  floorContainer.setAttribute('id', 'floorContainer');
+  children.forEach((child) => {
+    if(child.tagName.toLowerCase() === 'a-sphere'){
+      const pos = child.getAttribute('position').split(' ').map(n => parseFloat(n));
+      const radius = child.getAttribute('radius') || 0.04;
+      const color = child.getAttribute('color') || '#ff2b2b';
+      const s = document.createElement('a-sphere');
+      const x = pos[0];
+      const z = pos[2];
+      const floorY = 0.35 + (Math.random()*0.07 - 0.035); // basso, vicino al suolo
+      s.setAttribute('position', `${x.toFixed(3)} ${floorY.toFixed(3)} ${z.toFixed(3)}`);
+      s.setAttribute('radius', radius);
+      s.setAttribute('color', color);
+      s.setAttribute('opacity', 0.95);
+      const dur = 1800 + Math.random()*2000;
+      s.setAttribute('animation', `property: position; to: ${x.toFixed(3)} ${(floorY+0.08).toFixed(3)} ${z.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
+      floorContainer.appendChild(s);
+    }
+  });
+  document.querySelector('a-scene').appendChild(floorContainer);
+}
+
 /* --- LUCE PULSANTE --- */
 function animateLight(){
   const light = document.getElementById('pulseLight');
@@ -312,7 +341,7 @@ function setupInteractions(){
     window.open('https://wa.me/1234567890', '_blank');
   });
 
-  // items clicks (audio / links). Prevent duplicate plays using audioInstances.
+  // --- ITEMS: assegna listener in modo sicuro (un solo handler per item) ---
   const audioMap = { 'Radio':'radio.mp3', 'Fantacalcio':'fantacalcio.mp3', 'Dj':'dj.mp3' };
   const linkMap = {
     'DonBosco':'https://www.instagram.com/giovani_animatori_trecastagni/',
@@ -321,24 +350,32 @@ function setupInteractions(){
     'Eduverse':'https://www.instagram.com/eduverse___/'
   };
 
-  // attach listeners (safe: id elements exist)
   itemIds.forEach(id => {
     const el = document.getElementById(id);
-    if(!el) return;
-    // remove previous listeners to avoid duplicates (defensive)
-    el.replaceWith(el.cloneNode(true));
-    const newEl = document.getElementById(id) || document.querySelector(`#${id}`);
-    // ensure clickable class remains
-    newEl.setAttribute('class', 'item clickable');
-    // ensure material side double so front always readable
-    newEl.setAttribute('material', 'shader: flat; side: double');
+    if(!el){
+      console.warn('Elemento non trovato:', id);
+      return;
+    }
 
-    newEl.addEventListener('click', () => {
-      // audio items (single instance)
+    // assicurati che l'elemento sia visibile/clickable e non abbia listener multipli
+    el.setAttribute('visible', true);
+    el.setAttribute('class', 'item clickable');
+    el.setAttribute('material', 'shader: flat; side: double');
+
+    // rimuovi eventuale onclick precedente (defensive)
+    el.onclick = null;
+
+    // assegna un singolo handler usando onclick (garantisce un solo handler)
+    el.onclick = () => {
+      console.log('CLICK su item:', id);
+
+      // audio single-instance
       if(audioMap[id]){
-        // if already playing, ignore
         const existing = audioInstances[id];
-        if(existing && !existing.paused && !existing.ended) return;
+        if(existing && !existing.paused && !existing.ended){
+          console.log('Audio già in riproduzione per', id, '- click ignorato');
+          return;
+        }
         let a = audioInstances[id];
         if(!a){
           a = new Audio(audioMap[id]);
@@ -359,8 +396,8 @@ function setupInteractions(){
       if(linkMap[id]){ window.open(linkMap[id], '_blank'); return; }
 
       // fallback
-      window.open('https://instagram.com', '_blank');
-    });
+      window.open('https://instagram.com','_blank');
+    };
   });
 }
 
