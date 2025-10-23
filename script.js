@@ -1,8 +1,8 @@
 /* Config */
-const ITEM_Y = 2.6;           // piano unico in cui mettere gli item (più alto del QR)
-const ITEM_RADIUS = 2.0;      // raggio cerchio items intorno alla camera
-const ROTATION_UPDATE_MS = 200;// quanto spesso riallineare la rotazione verso la camera
-const CREATE_ROOF = true;     // se true, crea tetto con le stesse sfere luminose del ground
+const ITEM_Y = 2.6;           // piano unico più alto del QR
+const ITEM_RADIUS = 2.0;      // raggio di posizionamento
+const ROTATION_UPDATE_MS = 200;
+const CREATE_ROOF = true;
 
 /* DOM */
 const startBtn = document.getElementById('startBtn');
@@ -24,10 +24,16 @@ const itemIds = ['DonBosco','Radio','EtnaEnsemble','Tromba','Catania','Eduverse'
 let bgSavedTime = 0;
 const wait = ms => new Promise(r=>setTimeout(r,ms));
 
-/* audio instances (one per item) to avoid duplicates */
-const audioInstances = {}; // { id: Audio }
+/* audio instances */
+const audioInstances = {}; // one Audio per item
 
-/* start */
+/* base positions + animation state */
+const itemState = {}; // { id: { base: {x,y,z}, phase, ampX, ampY, ampZ } }
+
+/* RAF control */
+let rafId = null;
+
+/* START */
 startBtn.addEventListener('click', async () => {
   try{ await bgMusic.play(); }catch(e){}
   startOverlay.style.display = 'none';
@@ -39,29 +45,27 @@ startBtn.addEventListener('click', async () => {
     return;
   }
 
-  // QR più vicino, libero da ostacoli
-  qr.setAttribute('position','0 1.2 -1.2');
+  // QR pos (più lontano ma non troppo)
+  qr.setAttribute('position','0 1.2 -1.8');
   qr.setAttribute('scale','1.3 1.3 1');
-  demoVideo.setAttribute('position','0 1.2 -1.2');
-  replayLogo.setAttribute('position','-0.9 1.2 -1.2');
-  whatsappLogo.setAttribute('position','0.9 1.2 -1.2');
+  demoVideo.setAttribute('position','0 1.2 -1.8');
+  replayLogo.setAttribute('position','-0.9 1.2 -1.8');
+  whatsappLogo.setAttribute('position','0.9 1.2 -1.8');
 
-  // inizializza scena
+  // costruisci scena
   distributeItemsCircle(ITEM_RADIUS, ITEM_Y);
   createParticles(36);
   createSmoke(20);
   animateLight();
+  if(CREATE_ROOF) createRoofFromGround();
 
-  if (CREATE_ROOF) createRoofFromGround();
-
-  // start rotation updater to ensure items face camera frontally
   startRotationUpdater();
+  startItemOscillationLoop();
 
-  // interactions (QR, video, items, logos)
   setupInteractions();
 });
 
-/* --- camera handling --- */
+/* CAMERA */
 async function startCameraWithRetries(){
   cameraStreamEl.setAttribute('playsinline','');
   cameraStreamEl.setAttribute('webkit-playsinline','');
@@ -112,41 +116,62 @@ function forceSkyTextureUpdate(skyEl, duration=2000, interval=60){
   }, interval);
 }
 
-/* --- ITEMS: disposizione in cerchio su UN piano, oscillazione verticale, non sovrapposti --- */
-function distributeItemsCircle(radius = 2.0, height = 2.6){
+/* ITEMS: cerchio, stesse y, no spin; salviamo base pos + parametri per animazione custom */
+function distributeItemsCircle(radius = 2.0, height = ITEM_Y){
   const count = itemIds.length;
   const angleStep = (2 * Math.PI) / count;
   itemIds.forEach((id, i) => {
     const el = document.getElementById(id);
     if(!el) return;
-    const angle = i * angleStep + (Math.random()*0.12 - 0.06); // piccola casualità angolare
+    const angle = i * angleStep + (Math.random()*0.12 - 0.06);
     const x = radius * Math.cos(angle);
     const z = radius * Math.sin(angle);
     const y = height;
     el.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
     el.setAttribute('scale', '1 1 1');
-
-    // NON usare look-at: useremo rotazione calcolata (per evitare "specchi")
     el.removeAttribute('look-at');
     el.classList.add('clickable');
 
-    // oscillazione verticale leggera (sempre sullo stesso piano di base)
-    const amp = 0.06 + Math.random()*0.04;
-    const dur = 1600 + Math.random()*1600;
-    el.setAttribute('animation__float', `property: position; to: ${x.toFixed(3)} ${(y + amp).toFixed(3)} ${z.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
-
-    // leggera rotazione continua (non per l'orientamento principale)
-    el.setAttribute('animation__spin', `property: rotation; to: 0 360 0; dur: ${12000 + Math.random()*8000}; loop: true; easing: linear`);
+    // store base state for manual animation
+    itemState[id] = {
+      base: { x, y, z },
+      phase: Math.random()*Math.PI*2,
+      ampX: 0.03 + Math.random()*0.03,
+      ampY: 0.04 + Math.random()*0.03,
+      ampZ: 0.02 + Math.random()*0.02,
+      speed: 0.8 + Math.random()*0.8
+    };
   });
 }
 
-/* --- calcola e imposta rotazione Y in modo che la faccia "frontale" degli item punti alla camera --- */
+/* RAF loop: applica oscillazioni leggere senza influire sulla rotazione Y calcolata */
+let lastTime = performance.now();
+function startItemOscillationLoop(){
+  if(rafId) cancelAnimationFrame(rafId);
+  function loop(t){
+    const dt = (t - lastTime) / 1000;
+    lastTime = t;
+    const now = t / 1000;
+    for(const id of itemIds){
+      const el = document.getElementById(id);
+      if(!el) continue;
+      const s = itemState[id];
+      if(!s) continue;
+      const px = s.base.x + Math.sin(now * s.speed + s.phase) * s.ampX;
+      const py = s.base.y + Math.sin((now * s.speed * 1.1) + s.phase*1.3) * s.ampY;
+      const pz = s.base.z + Math.cos(now * s.speed * 0.9 + s.phase*0.7) * s.ampZ;
+      // set position directly (three.js object3D will update)
+      el.setAttribute('position', `${px.toFixed(4)} ${py.toFixed(4)} ${pz.toFixed(4)}`);
+    }
+    rafId = requestAnimationFrame(loop);
+  }
+  rafId = requestAnimationFrame(loop);
+}
+
+/* ROTATION: manteniamo Y verso la camera (frontalmente leggibile); aggiornamento periodico */
 let rotationUpdaterInterval = null;
 function startRotationUpdater(){
-  // update immediato
   updateItemsRotationToCamera();
-
-  // e aggiornamenti periodici
   if(rotationUpdaterInterval) clearInterval(rotationUpdaterInterval);
   rotationUpdaterInterval = setInterval(updateItemsRotationToCamera, ROTATION_UPDATE_MS);
 }
@@ -162,19 +187,15 @@ function updateItemsRotationToCamera(){
     const objPos = new THREE.Vector3();
     el.object3D.getWorldPosition(objPos);
 
-    // vettore dal item alla camera
     const dx = camPos.x - objPos.x;
     const dz = camPos.z - objPos.z;
-    // calcola angolo Y (attenzione ordine trig)
-    const rotYrad = Math.atan2(dx, dz); // ruota in modo che il fronte guardi la camera
-    const rotYdeg = THREE.Math.radToDeg(rotYrad); // converti in gradi
-
-    // Imposta rotazione con X e Z a zero (manteniamo solo Y)
+    const rotYrad = Math.atan2(dx, dz);
+    const rotYdeg = THREE.Math.radToDeg(rotYrad);
     el.setAttribute('rotation', `0 ${rotYdeg.toFixed(3)} 0`);
   });
 }
 
-/* --- PARTICLES E FUMO --- */
+/* PARTICLES / SMOKE / ROOF */
 function createParticles(count = 32){
   const root = document.getElementById('particles');
   while(root.firstChild) root.removeChild(root.firstChild);
@@ -194,8 +215,6 @@ function createParticles(count = 32){
     root.appendChild(s);
   }
 }
-
-/* smoke (cylinders ascendenti) */
 function createSmoke(count = 20){
   const root = document.getElementById('particles');
   for(let i=0;i<count;i++){
@@ -212,28 +231,23 @@ function createSmoke(count = 20){
     root.appendChild(e);
   }
 }
-
-/* --- CREA TETTO CON LE STESSE SFERE PRESENTI A TERRA --- */
 function createRoofFromGround(){
   const root = document.getElementById('particles');
-  // prendiamo gli elementi esistenti e cloniamo le sfere con y più alto
   const children = Array.from(root.children);
   const roofContainer = document.createElement('a-entity');
-  roofContainer.setAttribute('id', 'roofContainer');
-  children.forEach((child, idx) => {
-    // consideriamo solo a-sphere per la copia del tetto
+  roofContainer.setAttribute('id','roofContainer');
+  children.forEach(child=>{
     if(child.tagName.toLowerCase() === 'a-sphere'){
-      const pos = child.getAttribute('position').split(' ').map(n => parseFloat(n));
+      const pos = (child.getAttribute('position') || '0 1 0').split(' ').map(n=>parseFloat(n));
       const radius = child.getAttribute('radius') || 0.04;
       const color = child.getAttribute('color') || '#ff2b2b';
       const s = document.createElement('a-sphere');
-      // copia X,Z ma mettiamo Y molto più alto per tetto
-      const x = pos[0]; const z = pos[2];
-      const roofY = 3.2 + (Math.random()*0.3 - 0.15); // sopra la scena
+      const x = pos[0];
+      const z = pos[2];
+      const roofY = 3.2 + (Math.random()*0.3 - 0.15);
       s.setAttribute('position', `${x.toFixed(3)} ${roofY.toFixed(3)} ${z.toFixed(3)}`);
       s.setAttribute('radius', radius);
       s.setAttribute('color', color);
-      // animazione piacevole (leggera bobbing)
       const dur = 1200 + Math.random()*1800;
       s.setAttribute('animation', `property: position; to: ${x.toFixed(3)} ${(roofY+0.25).toFixed(3)} ${z.toFixed(3)}; dur: ${dur}; dir: alternate; loop: true; easing: easeInOutSine`);
       roofContainer.appendChild(s);
@@ -242,56 +256,44 @@ function createRoofFromGround(){
   document.querySelector('a-scene').appendChild(roofContainer);
 }
 
-/* --- LUCE PULSANTE --- */
+/* LIGHT */
 function animateLight(){
   const light = document.getElementById('pulseLight');
   if(!light) return;
-  // animazione animata sulla proprietà internal light.intensity (A-Frame consente animazioni su proprietà interne)
   light.setAttribute('animation__pulse', 'property: light.intensity; from: 0.35; to: 1.1; dur: 1200; dir: alternate; loop: true; easing: easeInOutSine');
 }
 
-/* --- INTERAZIONI: QR, video, logos, items --- */
+/* INTERACTIONS: QR, video, logos, items (audio single-instance protection) */
 function setupInteractions(){
   preserveVideoAspect();
 
-  // inizialmente disabilitiamo i loghi
+  // logos inizialmente invisibili
   replayLogo.setAttribute('visible', false);
   whatsappLogo.setAttribute('visible', false);
   replayLogo.classList.remove('clickable');
   whatsappLogo.classList.remove('clickable');
 
-  qr.addEventListener('click', async () => {
+  qr.addEventListener('click', async ()=>{
     qr.setAttribute('visible', false);
     demoVideo.setAttribute('visible', true);
-    try {
-      await holoVideo.play();
-      try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-    } catch (err) {
-      videoTapOverlay.style.display = 'flex';
-    }
+    try { await holoVideo.play(); try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){} } catch(e){ videoTapOverlay.style.display = 'flex'; }
   });
 
-  tapToPlay && tapToPlay.addEventListener('click', async () => {
+  tapToPlay && tapToPlay.addEventListener('click', async ()=>{
     videoTapOverlay.style.display = 'none';
-    try {
-      await holoVideo.play();
-      try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-    } catch(err) {
-      alert('Impossibile avviare il video.');
-    }
+    try { await holoVideo.play(); try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){} } catch(e){ alert('Impossibile avviare il video'); }
   });
 
-  holoVideo.addEventListener('ended', () => {
+  holoVideo.addEventListener('ended', ()=>{
     demoVideo.setAttribute('visible', false);
     replayLogo.setAttribute('visible', true);
     whatsappLogo.setAttribute('visible', true);
     replayLogo.classList.add('clickable');
     whatsappLogo.classList.add('clickable');
-    try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
+    try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
   });
 
-  // replay
-  replayLogo.addEventListener('click', async () => {
+  replayLogo.addEventListener('click', async ()=>{
     const vis = replayLogo.getAttribute('visible');
     if(!vis) return;
     replayLogo.setAttribute('visible', false);
@@ -299,17 +301,15 @@ function setupInteractions(){
     replayLogo.classList.remove('clickable');
     whatsappLogo.classList.remove('clickable');
     demoVideo.setAttribute('visible', true);
-    try { await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ videoTapOverlay.style.display = 'flex'; }
+    try{ await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ videoTapOverlay.style.display='flex'; }
   });
 
-  // whatsapp
-  whatsappLogo.addEventListener('click', () => {
+  whatsappLogo.addEventListener('click', ()=>{
     const vis = whatsappLogo.getAttribute('visible');
     if(!vis) return;
     window.open('https://wa.me/1234567890', '_blank');
   });
 
-  // items clicks (audio / links). Prevent duplicate plays using audioInstances.
   const audioMap = { 'Radio':'radio.mp3', 'Fantacalcio':'fantacalcio.mp3', 'Dj':'dj.mp3' };
   const linkMap = {
     'DonBosco':'https://www.instagram.com/giovani_animatori_trecastagni/',
@@ -318,45 +318,39 @@ function setupInteractions(){
     'Eduverse':'https://www.instagram.com/eduverse___/'
   };
 
-  itemIds.forEach(id => {
+  itemIds.forEach(id=>{
     const el = document.getElementById(id);
     if(!el) return;
-    el.addEventListener('click', () => {
-      // audio items (single instance)
+    el.classList.add('clickable');
+    el.addEventListener('click', ()=>{
       if(audioMap[id]){
-        if(audioInstances[id] && !audioInstances[id].ended && !audioInstances[id].paused){
-          // già in riproduzione: ignora click successivi
+        // single-instance play
+        let a = audioInstances[id];
+        if(a && !a.paused && !a.ended){
+          // already playing -> ignore
           return;
         }
-        // crea o riusa
-        let a = audioInstances[id];
         if(!a){
           a = new Audio(audioMap[id]);
           a.preload = 'auto';
           audioInstances[id] = a;
         } else {
-          // riparti dall'inizio
-          try { a.currentTime = 0; } catch(e){}
+          try{ a.currentTime = 0; }catch(e){}
         }
-        try { a.play(); } catch(e){ console.warn('audio play blocked', e); }
-        a.onended = () => { try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){} };
-        // pause bgMusic while playing
-        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+        try{ a.play(); }catch(e){ console.warn('audio play blocked', e); }
+        try{ bgSavedTime = bgMusic.currentTime; bgMusic.pause(); }catch(e){}
+        a.onended = ()=>{ try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); }catch(e){} };
         return;
       }
-
-      // special links
       if(id === 'Tromba'){ window.open('https://youtu.be/AMK10N6wwHM','_blank'); return; }
       if(id === 'Ballerino'){ window.open('https://youtu.be/JS_BY3LRBqw','_blank'); return; }
       if(linkMap[id]){ window.open(linkMap[id], '_blank'); return; }
-
-      // fallback
-      window.open('https://instagram.com', '_blank');
+      window.open('https://instagram.com','_blank');
     });
   });
 }
 
-/* --- mantieni corretta l'aspect ratio del piano video a-video --- */
+/* VIDEO ASPECT */
 function preserveVideoAspect(){
   const src = holoVideo.querySelector('source') ? holoVideo.querySelector('source').src : holoVideo.src;
   if(!src) return;
@@ -365,14 +359,12 @@ function preserveVideoAspect(){
   probe.src = src;
   probe.muted = true;
   probe.playsInline = true;
-  probe.addEventListener('loadedmetadata', () => {
+  probe.addEventListener('loadedmetadata', ()=>{
     const w = probe.videoWidth, h = probe.videoHeight;
     if(w && h){
       const aspect = w / h;
       const baseH = 1.0;
-      const sx = baseH * aspect;
-      const sy = baseH;
-      demoVideo.setAttribute('scale', `${sx} ${sy} 1`);
+      demoVideo.setAttribute('scale', `${(baseH * aspect)} ${baseH} 1`);
     }
   });
   probe.load();
