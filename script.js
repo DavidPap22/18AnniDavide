@@ -195,12 +195,13 @@ function animateLight() {
 
 // ---------- INTERAZIONI (video, audio, click) ----------
 function setupInteractions() {
-  const audioMap = { 'Radio': 'radio.mp3', 'Fantacalcio': 'fantacalcio.mp3', 'Dj': 'dj.mp3' };
+  const audioMap = {'Fantacalcio': 'fantacalcio.mp3', 'Dj': 'dj.mp3' };
   const linkMap = {
     'DonBosco': 'https://www.instagram.com/giovani_animatori_trecastagni/',
     'EtnaEnsemble': 'https://www.instagram.com/etnaensemble/',
     'Catania': 'https://www.instagram.com/officialcataniafc/',
     'Eduverse': 'https://www.instagram.com/eduverse___/'
+	'Radio': 'https://open.spotify.com/intl-it/track/3nhAgjyrfUUCNDMZHx6LCa?si=043e9baf88924a82' 
   };
 
   preserveVideoAspect();
