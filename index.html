@@ -18,7 +18,6 @@
   </div>
 </div>
 
-<!-- hidden video elements -->
 <video id="cameraStream" playsinline webkit-playsinline muted autoplay style="display:none"></video>
 <video id="holoVideo" playsinline webkit-playsinline preload="auto" style="display:none">
   <source src="video-demo.mp4" type="video/mp4">
@@ -26,13 +25,12 @@
 
 <a-scene id="scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; colorManagement: true;">
   <a-sky id="cameraSky" color="#000"></a-sky>
-
   <a-entity light="type: ambient; intensity: 0.45; color: #ff2222"></a-entity>
-  <a-entity id="pulseLight" light="type: point; intensity:0.6; color:#ff2222; distance:12" position="0 3 0"></a-entity>
+  <a-entity id="pulseLight" light="type: point; intensity:0.6; color:#ff2222; distance:10" position="0 3 0"></a-entity>
 
   <a-entity id="particles"></a-entity>
 
-  <!-- items -->
+  <!-- Items -->
   <a-image id="DonBosco" src="Don bosco.png" class="item"></a-image>
   <a-image id="Radio" src="Radio.png" class="item"></a-image>
   <a-image id="EtnaEnsemble" src="EtnaEnsemble.png" class="item"></a-image>
@@ -43,15 +41,15 @@
   <a-image id="Dj" src="Dj.png" class="item"></a-image>
   <a-image id="Ballerino" src="Ballerino.png" class="item"></a-image>
 
-  <!-- QR + video -->
-  <a-image id="qrCode" src="invito.png" position="0 1.2 -1.6" scale="1.3 1.3 1" class="center clickable"></a-image>
-  <a-video id="demoVideo" src="#holoVideo" position="0 1.2 -1.6" visible="false"></a-video>
+  <!-- QR e video al centro -->
+  <a-image id="qrCode" src="invito.png" position="0 1.2 -1.5" scale="1.3 1.3 1" class="center clickable"></a-image>
+  <a-video id="demoVideo" src="#holoVideo" position="0 1.2 -1.5" visible="false"></a-video>
 
   <!-- logos -->
-  <a-image id="replayLogo" src="replay.png" position="-0.9 1.2 -1.6" visible="false" scale="1.2 1.2 1" class="center clickable"></a-image>
-  <a-image id="whatsappLogo" src="whatsapp.png" position="0.9 1.2 -1.6" visible="false" scale="1.2 1.2 1" class="center clickable"></a-image>
+  <a-image id="replayLogo" src="replay.png" position="-0.9 1.2 -1.5" visible="false" scale="1.2 1.2 1"></a-image>
+  <a-image id="whatsappLogo" src="whatsapp.png" position="0.9 1.2 -1.5" visible="false" scale="1.2 1.2 1"></a-image>
 
-  <!-- camera + cursor -->
+  <!-- Camera + cursor -->
   <a-entity id="cameraRig">
     <a-entity id="camera" camera look-controls position="0 1.6 0">
       <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
