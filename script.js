@@ -112,20 +112,22 @@ function preserveVideoAspect(){
   probe.addEventListener('loadedmetadata',()=>{const w=probe.videoWidth,h=probe.videoHeight;if(w&&h){const aspect=w/h,baseH=1.0; const sx=baseH*aspect,sy=baseH; demoVideo.setAttribute('scale',`${sx} ${sy} 1`);}}); probe.load();
 }
 
-// ---------- Orientamento solo Y (gira solo attorno all'asse Y) ----------
+// ---------- Orientamento robusto verso la camera ----------
 
+// Mappa degli item da flippar (ora TUTTI a true per girarli 180°)
 const flipMap = {
-  'DonBosco': false,
-  'Radio': false,
-  'EtnaEnsemble': false,
-  'Tromba': false,
-  'Catania': false,
-  'Eduverse': false,
-  'Fantacalcio': false,
-  'Dj': false,
-  'Ballerino': false
+  'DonBosco': true,
+  'Radio': true,
+  'EtnaEnsemble': true,
+  'Tromba': true,
+  'Catania': true,
+  'Eduverse': true,
+  'Fantacalcio': true,
+  'Dj': true,
+  'Ballerino': true
 };
 
+// Imposta materiale double-sided per evitare backface culling
 function ensureDoubleSide(el){
   const mesh = el.getObject3D && el.getObject3D('mesh');
   if(!mesh) return;
@@ -139,24 +141,20 @@ function ensureDoubleSide(el){
   }catch(e){}
 }
 
-// orienta solo Y: calcola l'angolo orizzontale tra item e camera e applica la rotazione Y mantenendo X/Z fissi
-function orientItemTowardsCameraY(el, cameraObj){
+// Orienta un elemento verso la camera (rotazione libera)
+function orientItemTowardsCamera(el, cameraObj){
   if(!el || !el.object3D || !cameraObj) return;
-  const itemPos = new THREE.Vector3();
   const camPos = new THREE.Vector3();
-  el.object3D.getWorldPosition(itemPos);
   cameraObj.getWorldPosition(camPos);
 
   ensureDoubleSide(el);
 
   try{
-    // progetto la differenza sul piano XZ (ignora Y)
-    const dx = camPos.x - itemPos.x;
-    const dz = camPos.z - itemPos.z;
-    const angle = Math.atan2(dx, dz); // nota: ordine per far guardare il piano "fronte"
-    // imposta rotazione Y (Three.js usa rotation.y in radianti)
-    el.object3D.rotation.set(0, angle + Math.PI, 0); // +PI per correggere l'orientazione front-face
-    // applica flip orizzontale via scale se necessario
+    el.object3D.lookAt(camPos);
+    // correzione 180° (utile spesso per piani a-face che risultano "capovolti")
+    el.object3D.rotation.y += Math.PI;
+
+    // flip orizzontale se necessario
     if(flipMap[el.id]){
       const s = el.getAttribute('scale') || '1 1 1';
       const parts = (typeof s === 'string' ? s.split(' ') : [s.x, s.y, s.z]);
@@ -175,31 +173,31 @@ function orientItemTowardsCameraY(el, cameraObj){
   }catch(e){}
 }
 
-let orientIntervalY = null;
-function startOrientLoopY(intervalMs = 80){
-  if(orientIntervalY) clearInterval(orientIntervalY);
+let orientInterval = null;
+function startOrientLoop(intervalMs = 80){
+  if(orientInterval) clearInterval(orientInterval);
   const cameraEl = document.getElementById('camera');
   const cameraObj = cameraEl ? cameraEl.object3D : null;
   if(!cameraObj) {
-    setTimeout(()=>startOrientLoopY(intervalMs), 200);
+    setTimeout(()=>startOrientLoop(intervalMs), 200);
     return;
   }
-  orientIntervalY = setInterval(()=>{
+  orientInterval = setInterval(()=>{
     itemIds.forEach(id=>{
       const el = document.getElementById(id);
       if(el && el.object3D){
-        orientItemTowardsCameraY(el, cameraObj);
+        orientItemTowardsCamera(el, cameraObj);
       }
     });
   }, intervalMs);
 }
-function stopOrientLoopY(){
-  if(orientIntervalY) clearInterval(orientIntervalY);
-  orientIntervalY = null;
+function stopOrientLoop(){
+  if(orientInterval) clearInterval(orientInterval);
+  orientInterval = null;
 }
 
-// Avvia loop Y quando la scena è pronta
+// Avvia loop di orientamento quando la scena è pronta
 document.querySelector('a-scene').addEventListener('loaded', ()=>{
-  setTimeout(()=>startOrientLoopY(80),200);
+  setTimeout(()=>startOrientLoop(80),200);
 });
-window.addEventListener('beforeunload', ()=>{ stopOrientLoopY(); });
+window.addEventListener('beforeunload', ()=>{ stopOrientLoop(); });
