@@ -66,8 +66,8 @@ function distributeItemsCircle(radius=2.0, height=2.2){
 }
 
 // ---------- PARTICLES, FUMO, LUCE ----------
-function createParticles(count=32){const root=document.getElementById('particles');while(root.firstChild)root.removeChild(root.firstChild);for(let i=0;i<count;i++){const s=document.createElement('a-sphere');const px=(Math.random()*2-1)*3;const py=Math.random()*2+0.6;const pz=(Math.random()*2-1)*3;s.setAttribute('position',`${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);s.setAttribute('radius',(0.03+Math.random()*0.04).toFixed(3));s.setAttribute('color','#ff2b2b');const tx=px+(Math.random()*0.6-0.3);const ty=py+(Math.random()*0.6-0.3);const tz=pz+(Math.random()*0.6-0.3);const dur=1600+Math.random()*2600;s.setAttribute('animation',`property: position; to: ${tx.toFixed(3)} ${ty.toFixed(3)} ${tz.toFixed(3)}; dur:${dur}; dir:alternate; loop:true; easing:easeInOutSine`);root.appendChild(s);} }
-function createSmoke(count=20){const root=document.getElementById('particles');for(let i=0;i<count;i++){const e=document.createElement('a-cylinder');const px=(Math.random()*2-1)*3;const py=0.5+Math.random()*2;const pz=(Math.random()*2-1)*3;e.setAttribute('position',`${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);e.setAttribute('radius',0.03);e.setAttribute('height',0.7+Math.random()*0.5);e.setAttribute('color','#ff1111');e.setAttribute('opacity',0.45);e.setAttribute('animation',`property: position; to: ${px.toFixed(3)} ${(py+0.6).toFixed(3)} ${pz.toFixed(3)}; dur:${1800+Math.random()*1800}; dir:alternate; loop:true; easing:easeInOutSine`);root.appendChild(e);} }
+function createParticles(count=32){const root=document.getElementById('particles');while(root.firstChild)root.removeChild(root.firstChild);for(let i=0;i<count;i++){const s=document.createElement('a-sphere');const px=(Math.random()*2-1)*3;const py=Math.random()*2+0.6;const pz=(Math.random()*2-1)*3;s.setAttribute('position',`${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);s.setAttribute('radius',(0.03+Math.random()*0.04).toFixed(3));s.setAttribute('color','#ff2b2b');const tx=px+(Math.random()*0.6-0.3);const ty=py+(Math.random()*0.6-0.3);const tz=pz+(Math.random()*0.6-0.3);const dur=1600+Math.random()*2600;s.setAttribute('animation',`property: position; to: ${tx.toFixed(3)} ${ty.toFixed(3)} ${tz.toFixed(3)}; dur:${dur}; dir:alternate; loop:true; easing=easeInOutSine`);root.appendChild(s);} }
+function createSmoke(count=20){const root=document.getElementById('particles');for(let i=0;i<count;i++){const e=document.createElement('a-cylinder');const px=(Math.random()*2-1)*3;const py=0.5+Math.random()*2;const pz=(Math.random()*2-1)*3;e.setAttribute('position',`${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);e.setAttribute('radius',0.03);e.setAttribute('height',0.7+Math.random()*0.5);e.setAttribute('color','#ff1111');e.setAttribute('opacity',0.45);e.setAttribute('animation',`property: position; to: ${px.toFixed(3)} ${(py+0.6).toFixed(3)} ${pz.toFixed(3)}; dur:${1800+Math.random()*1800}; dir:alternate; loop:true; easing=easeInOutSine`);root.appendChild(e);} }
 function animateLight(){const light=document.getElementById('pulseLight');light.setAttribute('animation','property: intensity; to:1.1; dur:1200; dir:alternate; loop:true; easing:easeInOutSine');}
 
 // ---------- INTERAZIONI ----------
@@ -112,9 +112,9 @@ function preserveVideoAspect(){
   probe.addEventListener('loadedmetadata',()=>{const w=probe.videoWidth,h=probe.videoHeight;if(w&&h){const aspect=w/h,baseH=1.0; const sx=baseH*aspect,sy=baseH; demoVideo.setAttribute('scale',`${sx} ${sy} 1`);}}); probe.load();
 }
 
-// ---------- Orientamento robusto verso la camera ----------
+// ---------- Orientamento solo Y (gira solo attorno all'asse Y) ----------
 
-// Mappa degli item da flippar (ora TUTTI a true per girarli 180°)
+// Mappa tutti a true per girare immagini verso il front
 const flipMap = {
   'DonBosco': true,
   'Radio': true,
@@ -127,7 +127,6 @@ const flipMap = {
   'Ballerino': true
 };
 
-// Imposta materiale double-sided per evitare backface culling
 function ensureDoubleSide(el){
   const mesh = el.getObject3D && el.getObject3D('mesh');
   if(!mesh) return;
@@ -141,20 +140,24 @@ function ensureDoubleSide(el){
   }catch(e){}
 }
 
-// Orienta un elemento verso la camera (rotazione libera)
-function orientItemTowardsCamera(el, cameraObj){
+// orienta solo Y: calcola l'angolo orizzontale tra item e camera e applica la rotazione Y mantenendo X/Z fissi
+function orientItemTowardsCameraY(el, cameraObj){
   if(!el || !el.object3D || !cameraObj) return;
+  const itemPos = new THREE.Vector3();
   const camPos = new THREE.Vector3();
+  el.object3D.getWorldPosition(itemPos);
   cameraObj.getWorldPosition(camPos);
 
   ensureDoubleSide(el);
 
   try{
-    el.object3D.lookAt(camPos);
-    // correzione 180° (utile spesso per piani a-face che risultano "capovolti")
-    el.object3D.rotation.y += Math.PI;
-
-    // flip orizzontale se necessario
+    // progetto la differenza sul piano XZ (ignora Y)
+    const dx = camPos.x - itemPos.x;
+    const dz = camPos.z - itemPos.z;
+    const angle = Math.atan2(dx, dz); // ordine per far guardare il piano "fronte"
+    // imposta rotazione Y (Three.js usa rotation.y in radianti)
+    el.object3D.rotation.set(0, angle + Math.PI, 0); // +PI per correggere l'orientazione front-face
+    // applica flip orizzontale via scale se necessario
     if(flipMap[el.id]){
       const s = el.getAttribute('scale') || '1 1 1';
       const parts = (typeof s === 'string' ? s.split(' ') : [s.x, s.y, s.z]);
@@ -173,31 +176,31 @@ function orientItemTowardsCamera(el, cameraObj){
   }catch(e){}
 }
 
-let orientInterval = null;
-function startOrientLoop(intervalMs = 80){
-  if(orientInterval) clearInterval(orientInterval);
+let orientIntervalY = null;
+function startOrientLoopY(intervalMs = 80){
+  if(orientIntervalY) clearInterval(orientIntervalY);
   const cameraEl = document.getElementById('camera');
   const cameraObj = cameraEl ? cameraEl.object3D : null;
   if(!cameraObj) {
-    setTimeout(()=>startOrientLoop(intervalMs), 200);
+    setTimeout(()=>startOrientLoopY(intervalMs), 200);
     return;
   }
-  orientInterval = setInterval(()=>{
+  orientIntervalY = setInterval(()=>{
     itemIds.forEach(id=>{
       const el = document.getElementById(id);
       if(el && el.object3D){
-        orientItemTowardsCamera(el, cameraObj);
+        orientItemTowardsCameraY(el, cameraObj);
       }
     });
   }, intervalMs);
 }
-function stopOrientLoop(){
-  if(orientInterval) clearInterval(orientInterval);
-  orientInterval = null;
+function stopOrientLoopY(){
+  if(orientIntervalY) clearInterval(orientIntervalY);
+  orientIntervalY = null;
 }
 
-// Avvia loop di orientamento quando la scena è pronta
+// Avvia loop Y quando la scena è pronta
 document.querySelector('a-scene').addEventListener('loaded', ()=>{
-  setTimeout(()=>startOrientLoop(80),200);
+  setTimeout(()=>startOrientLoopY(80),200);
 });
-window.addEventListener('beforeunload', ()=>{ stopOrientLoop(); });
+window.addEventListener('beforeunload', ()=>{ stopOrientLoopY(); });
