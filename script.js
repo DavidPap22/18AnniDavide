@@ -1,4 +1,4 @@
-// ---------- script.js completo con face-camera component e funzioni integrate ----------
+// ---------- script.js completo aggiornato (Radio apre Spotify) ----------
 
 // ---------- Variabili DOM ----------
 const startBtn = document.getElementById('startBtn');
@@ -152,7 +152,6 @@ function distributeItemsCircle(radius = 2.0, height = 2.2) {
 // ---------- PARTICLES, FUMO, LUCE ----------
 function createParticles(count = 32) {
   const root = document.getElementById('particles');
-  // pulisci
   while (root.firstChild) root.removeChild(root.firstChild);
   for (let i = 0; i < count; i++) {
     const s = document.createElement('a-sphere');
@@ -166,7 +165,7 @@ function createParticles(count = 32) {
     const ty = py + (Math.random() * 0.6 - 0.3);
     const tz = pz + (Math.random() * 0.6 - 0.3);
     const dur = 1600 + Math.random() * 2600;
-    s.setAttribute('animation', `property: position; to: ${tx.toFixed(3)} ${ty.toFixed(3)} ${tz.toFixed(3)}; dur:${dur}; dir:alternate; loop:true; easing:easeInOutSine`);
+    s.setAttribute('animation', `property: position; to: ${tx.toFixed(3)} ${ty.toFixed(3)} ${tz.toFixed(3)}; dur:${dur}; dir:alternate; loop:true; easing=easeInOutSine`);
     root.appendChild(s);
   }
 }
@@ -195,13 +194,15 @@ function animateLight() {
 
 // ---------- INTERAZIONI (video, audio, click) ----------
 function setupInteractions() {
-  const audioMap = {'Fantacalcio': 'fantacalcio.mp3', 'Dj': 'dj.mp3' };
+  // Nota: Radio ora apre il link Spotify invece di usare un audioMap locale.
+  const audioMap = { 'Fantacalcio': 'fantacalcio.mp3', 'Dj': 'dj.mp3' };
   const linkMap = {
     'DonBosco': 'https://www.instagram.com/giovani_animatori_trecastagni/',
     'EtnaEnsemble': 'https://www.instagram.com/etnaensemble/',
     'Catania': 'https://www.instagram.com/officialcataniafc/',
-    'Eduverse': 'https://www.instagram.com/eduverse___/'
-	'Radio': 'https://open.spotify.com/intl-it/track/3nhAgjyrfUUCNDMZHx6LCa?si=043e9baf88924a82' 
+    'Eduverse': 'https://www.instagram.com/eduverse___/',
+    // Radio -> apri la traccia Spotify (link fornito)
+    'Radio': 'https://open.spotify.com/intl-it/track/3nhAgjyrfUUCNDMZHx6LCa?si=043e9baf88924a82'
   };
 
   preserveVideoAspect();
@@ -240,6 +241,7 @@ function setupInteractions() {
   itemIds.forEach(id => {
     const el = document.getElementById(id); if (!el) return;
     el.addEventListener('click', () => {
+      // Se abbiamo un audioMap per l'id -> riproduci il file mp3 (temporaneamente stoppa bgMusic)
       if (audioMap[id]) {
         try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch (e) { }
         const a = new Audio(audioMap[id]);
@@ -247,9 +249,12 @@ function setupInteractions() {
         a.onended = () => { try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch (e) { } };
         return;
       }
-      if (id === 'Tromba') { window.open('https://youtu.be/AMK10N6wwHM', '_blank'); return; }
-      if (id === 'Ballerino') { window.open('https://youtu.be/JS_BY3LRBqw', '_blank'); return; }
-      if (linkMap[id]) { window.open(linkMap[id], '_blank'); return; }
+      // Se linkMap ha l'id -> apri in una nuova scheda
+      if (linkMap[id]) {
+        window.open(linkMap[id], '_blank');
+        return;
+      }
+      // Fallback generico
       window.open('https://instagram.com', '_blank');
     });
   });
@@ -272,7 +277,6 @@ function preserveVideoAspect() {
 
 // ---------- Pulizia eventi on unload (buona pratica) ----------
 window.addEventListener('beforeunload', () => {
-  // ferma eventuali audio/video
   try { bgMusic.pause(); } catch (e) { }
   try { holoVideo.pause(); } catch (e) { }
 });
