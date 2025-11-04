@@ -1,15 +1,17 @@
-// ---------- script.js aggiornato velocità sfere + WhatsApp ----------
+// ---------- script.js completo: WebP/GIF + mp3 per iOS + tutte le funzionalità ----------
 
-// ---------- Variabili DOM ----------
+// ---------- Config e Variabili DOM ----------
+const DEMO_DURATION_MS = 28000; // il video dura 28 secondi
 const startBtn = document.getElementById('startBtn');
 const startOverlay = document.getElementById('startOverlay');
 const bgMusic = document.getElementById('bgMusic');
 const cameraStreamEl = document.getElementById('cameraStream');
-const holoVideo = document.getElementById('holoVideo'); // <video> element
+const holoVideo = document.getElementById('holoVideo'); // mp4 <video>
+const demoVideo = document.getElementById('demoVideo'); // a-video entity
+const holoImage = document.getElementById('holoImage'); // a-image for webp/gif (added)
 const videoTapOverlay = document.getElementById('videoTapOverlay');
 const tapToPlay = document.getElementById('tapToPlay');
 const qr = document.getElementById('qrCode');
-const demoVideo = document.getElementById('demoVideo'); // a-video entity
 const replayLogo = document.getElementById('replayLogo');
 const whatsappLogo = document.getElementById('whatsappLogo');
 
@@ -17,10 +19,31 @@ const itemIds = ['DonBosco','Radio','EtnaEnsemble','Tromba','Catania','Eduverse'
 let bgSavedTime = 0;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-// Assicurati che il video abbia volume alto (massimo)
-try{ holoVideo.volume = 1.0; }catch(e){ /* silent */ }
+// Assets (nella root pubblica)
+const demoWebpSrc = 'video-demo.webp';
+const demoGifSrc = 'video-demo.gif';
+const demoAudioSrc = 'demo-audio.mp3';
 
-// ----------------- COMPONENTE A-FRAME: face-camera -----------------
+// Assicura volume alto per video su Android/desktop
+try { holoVideo.volume = 1.0; } catch(e){}
+
+// ---------- Helper: rilevamento iOS ----------
+function isIOS() {
+  const ua = navigator.userAgent || navigator.vendor || window.opera;
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  if (navigator.platform === 'MacIntel' && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1) return true;
+  return false;
+}
+
+// Test minimale support webp (animated)
+function supportsWebPAnimated(callback) {
+  const img = new Image();
+  img.onload = () => callback(true);
+  img.onerror = () => callback(false);
+  img.src = demoWebpSrc + '?_v=1';
+}
+
+// ---------- face-camera component (Y-only) ----------
 AFRAME.registerComponent('face-camera', {
   schema: { mode: { type: 'string', default: 'y' }, flip: { type: 'boolean', default: false }, lockX: { type: 'boolean', default: true }, lockZ: { type: 'boolean', default: true } },
   init: function () {
@@ -34,20 +57,19 @@ AFRAME.registerComponent('face-camera', {
     try {
       if (Array.isArray(mesh.material)) mesh.material.forEach(m => { m.side = THREE.DoubleSide; m.needsUpdate = true; });
       else if (mesh.material) { mesh.material.side = THREE.DoubleSide; mesh.material.needsUpdate = true; }
-    } catch (e) { }
+    } catch(e){}
   },
   applyFlipOnce: function() {
     const sAttr = this.el.getAttribute('scale') || '1 1 1';
     const parts = (typeof sAttr === 'string' ? sAttr.split(' ') : [sAttr.x, sAttr.y, sAttr.z]);
-    const sx = -Math.abs(parseFloat(parts[0] || 1)), sy = parseFloat(parts[1] || 1), sz = parseFloat(parts[2] || 1);
+    const sx = -Math.abs(parseFloat(parts[0] || 1)), sy = parseFloat(parts[1]||1), sz = parseFloat(parts[2]||1);
     this.el.setAttribute('scale', `${sx} ${sy} ${sz}`);
   },
-  tick: (function () {
+  tick: (function(){
     const itemPos = new THREE.Vector3(), camPos = new THREE.Vector3();
-    return function () {
-      const camEl = this.cameraEl; if (!camEl || !camEl.object3D || !this.el.object3D) return;
-      this.el.object3D.getWorldPosition(itemPos);
-      camEl.object3D.getWorldPosition(camPos);
+    return function(){
+      const camEl = this.cameraEl; if(!camEl||!camEl.object3D||!this.el.object3D) return;
+      this.el.object3D.getWorldPosition(itemPos); camEl.object3D.getWorldPosition(camPos);
       if (this.data.mode === 'free') {
         this.el.object3D.lookAt(camPos);
         const ry = this.el.object3D.rotation.y;
@@ -63,100 +85,124 @@ AFRAME.registerComponent('face-camera', {
   })()
 });
 
-// ----------------- Funzioni principali -----------------
+// ---------- utility per holoImage (position/scale copy) ----------
+function setHoloImageScaleToDemoVideo() {
+  try {
+    const scale = demoVideo.getAttribute('scale');
+    if (scale) holoImage.setAttribute('scale', scale);
+    const pos = demoVideo.getAttribute('position');
+    if (pos) holoImage.setAttribute('position', pos);
+  } catch(e){}
+}
 
-const playingAudios = {}; // traccia audio in riproduzione
+function hideHoloImage() {
+  try {
+    holoImage.setAttribute('visible', false);
+    holoImage.setAttribute('src', '');
+  } catch(e){}
+}
 
+// ---------- demo audio helper ----------
+let demoAudio = null;
+function createDemoAudio() {
+  if (demoAudio) { try { demoAudio.pause(); demoAudio.currentTime = 0; } catch(e){} }
+  demoAudio = new Audio(demoAudioSrc);
+  demoAudio.preload = 'auto';
+  return demoAudio;
+}
+
+// ---------- MAIN: avvio esperienza ----------
 startBtn.addEventListener('click', async () => {
-  try { await bgMusic.play(); } catch (e) { }
+  try { await bgMusic.play(); } catch(e) {}
   startOverlay.style.display = 'none';
-  try { await startCameraWithRetries(); } catch (e) { alert('Impossibile avviare la fotocamera.'); return; }
+  try { await startCameraWithRetries(); } catch(e) { alert('Impossibile avviare la fotocamera.'); return; }
 
-  qr.setAttribute('position', '0 1.2 -1.5'); qr.setAttribute('scale', '1.3 1.3 1');
-  demoVideo.setAttribute('position', '0 1.2 -1.5');
-  replayLogo.setAttribute('position', '-0.9 1.2 -1.5'); whatsappLogo.setAttribute('position', '0.9 1.2 -1.5');
-  replayLogo.setAttribute('visible', false); whatsappLogo.setAttribute('visible', false);
+  qr.setAttribute('position','0 1.2 -1.5'); qr.setAttribute('scale','1.3 1.3 1');
+  demoVideo.setAttribute('position','0 1.2 -1.5');
+  replayLogo.setAttribute('position','-0.9 1.2 -1.5'); whatsappLogo.setAttribute('position','0.9 1.2 -1.5');
+  replayLogo.setAttribute('visible',false); whatsappLogo.setAttribute('visible',false);
   replayLogo.classList.remove('clickable'); whatsappLogo.classList.remove('clickable');
 
   distributeItemsCircle(2.0, 2.2);
   createParticles(36); createSmoke(25); animateLight();
   setupInteractions();
 
-  // Applica face-camera (Y-only) con flip
+  // attach face-camera to items
   itemIds.forEach(id => {
-    const el = document.getElementById(id); if (!el) return;
-    el.setAttribute('face-camera', 'mode: y; flip: true; lockX: true; lockZ: true');
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.setAttribute('face-camera','mode: y; flip: true; lockX: true; lockZ: true');
   });
 });
 
-// ---------- CAMERA ----------
-async function startCameraWithRetries() {
-  cameraStreamEl.setAttribute('playsinline', ''); cameraStreamEl.setAttribute('webkit-playsinline', '');
-  cameraStreamEl.setAttribute('autoplay', ''); cameraStreamEl.setAttribute('muted', ''); cameraStreamEl.setAttribute('crossorigin', 'anonymous');
-  cameraStreamEl.style.objectFit = 'cover';
-  const attempts = [{ video: { facingMode: { ideal: 'environment' } }, audio: false }, { video: { facingMode: 'environment' }, audio: false }, { video: true, audio: false }];
-  let lastErr = null, stream = null;
-  for (const c of attempts) {
-    try { stream = await navigator.mediaDevices.getUserMedia(c); if (stream) break; } catch (e) { lastErr = e; await wait(180); }
+// ---------- CAMERA (stessa logica di prima) ----------
+async function startCameraWithRetries(){
+  cameraStreamEl.setAttribute('playsinline',''); cameraStreamEl.setAttribute('webkit-playsinline','');
+  cameraStreamEl.setAttribute('autoplay',''); cameraStreamEl.setAttribute('muted',''); cameraStreamEl.setAttribute('crossorigin','anonymous');
+  cameraStreamEl.style.objectFit='cover';
+  const attempts=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
+  let lastErr=null,stream=null;
+  for(const c of attempts){
+    try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; await wait(180); }
   }
-  if (!stream) throw lastErr || new Error('Nessuno stream');
-  cameraStreamEl.srcObject = stream; cameraStreamEl.muted = true; cameraStreamEl.playsInline = true;
-  try { const p = cameraStreamEl.play(); if (p && p.then) await p } catch (e) { }
-  await new Promise(r => { let done=false; function onPlay(){ if(done) return; done=true; cameraStreamEl.removeEventListener('playing',onPlay); r(); } cameraStreamEl.addEventListener('playing',onPlay); setTimeout(()=>{ if(!done){done=true;cameraStreamEl.removeEventListener('playing',onPlay); r(); }},1800); });
+  if(!stream) throw lastErr||new Error('Nessuno stream');
+  cameraStreamEl.srcObject=stream; cameraStreamEl.muted=true; cameraStreamEl.playsInline=true;
+  try{ const p=cameraStreamEl.play(); if(p&&p.then) await p }catch(e){}
+  await new Promise(r=>{ let done=false; function onPlay(){ if(done) return; done=true; cameraStreamEl.removeEventListener('playing',onPlay); r(); } cameraStreamEl.addEventListener('playing',onPlay); setTimeout(()=>{ if(!done){ done=true; cameraStreamEl.removeEventListener('playing',onPlay); r(); } },1800); });
   document.getElementById('cameraSky').setAttribute('material','shader: flat; src: #cameraStream');
-  forceSkyTextureUpdate(document.getElementById('cameraSky'), 1400, 80);
+  forceSkyTextureUpdate(document.getElementById('cameraSky'),1400,80);
 }
 
-function forceSkyTextureUpdate(skyEl, d=1400, i=80) {
-  const start = Date.now(); const tid = setInterval(()=>{ try{ const mesh = skyEl.getObject3D('mesh'); if(mesh && mesh.material && mesh.material.map){ mesh.material.map.needsUpdate=true; mesh.material.needsUpdate=true; } }catch(e){} if(Date.now()-start>d) clearInterval(tid); }, i);
+function forceSkyTextureUpdate(skyEl,d=1400,i=80){
+  const start=Date.now(); const tid=setInterval(()=>{ try{ const mesh=skyEl.getObject3D('mesh'); if(mesh&&mesh.material&&mesh.material.map){ mesh.material.map.needsUpdate=true; mesh.material.needsUpdate=true; } }catch(e){} if(Date.now()-start>d) clearInterval(tid); }, i);
 }
 
-// ---------- ITEMS SU CERCHIO ----------
+// ---------- ITEMS su cerchio ----------
 function distributeItemsCircle(radius=2.0, height=2.2){
-  const count = itemIds.length;
-  const angleStep = (2*Math.PI)/count;
+  const count=itemIds.length; const angleStep=(2*Math.PI)/count;
   itemIds.forEach((id,i)=>{
     const el=document.getElementById(id); if(!el) return;
     const angle=i*angleStep + (Math.random()*0.1-0.05);
     const x=radius*Math.cos(angle), z=radius*Math.sin(angle), y=height;
-    el.setAttribute('position',`${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
+    el.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
     el.setAttribute('scale','0.95 0.95 0.95'); el.classList.add('clickable');
-    const amp=0.08+Math.random()*0.04, dur=800+Math.random()*600; // velocità più alta (dur più piccola)
-    el.setAttribute('animation__float',`property: position; to: ${x.toFixed(3)} ${(y+amp).toFixed(3)} ${z.toFixed(3)}; dur:${dur}; dir:alternate; loop:true; easing:easeInOutSine`);
+    const amp=0.08+Math.random()*0.04, dur=800+Math.random()*600; // più veloce
+    el.setAttribute('animation__float', `property: position; to: ${x.toFixed(3)} ${(y+amp).toFixed(3)} ${z.toFixed(3)}; dur:${dur}; dir:alternate; loop:true; easing:easeInOutSine`);
   });
 }
 
 // ---------- PARTICLES / FUMO ----------
 function createParticles(count=32){
-  const root = document.getElementById('particles'); while(root.firstChild) root.removeChild(root.firstChild);
+  const root=document.getElementById('particles'); while(root.firstChild) root.removeChild(root.firstChild);
   for(let i=0;i<count;i++){
     const s=document.createElement('a-sphere');
     const px=(Math.random()*2-1)*3, py=Math.random()*2+0.6, pz=(Math.random()*2-1)*3;
     s.setAttribute('position',`${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);
     s.setAttribute('radius',(0.03+Math.random()*0.04).toFixed(3)); s.setAttribute('color','#ff2b2b');
     const tx=(px+(Math.random()*0.6-0.3)).toFixed(3), ty=(py+(Math.random()*0.6-0.3)).toFixed(3), tz=(pz+(Math.random()*0.6-0.3)).toFixed(3);
-    const dur=800+Math.random()*1000; // velocità maggiore
-    s.setAttribute('animation__float',`property: position; to: ${tx} ${ty} ${tz}; dur:${Math.round(dur)}; dir:alternate; loop:true; easing:easeInOutSine`);
+    const dur=800+Math.random()*1000;
+    s.setAttribute('animation__float', `property: position; to: ${tx} ${ty} ${tz}; dur:${Math.round(dur)}; dir:alternate; loop:true; easing:easeInOutSine`);
     root.appendChild(s);
   }
 }
-
 function createSmoke(count=20){
-  const root = document.getElementById('particles');
+  const root=document.getElementById('particles');
   for(let i=0;i<count;i++){
     const e=document.createElement('a-cylinder');
     const px=(Math.random()*2-1)*3, py=0.5+Math.random()*2, pz=(Math.random()*2-1)*3;
     e.setAttribute('position',`${px.toFixed(3)} ${py.toFixed(3)} ${pz.toFixed(3)}`);
     e.setAttribute('radius',0.03); e.setAttribute('height',0.7+Math.random()*0.5); e.setAttribute('color','#ff1111'); e.setAttribute('opacity',0.45);
-    const ty=(py+0.6).toFixed(3), dur=900+Math.random()*900; // più veloce
-    e.setAttribute('animation__rise',`property: position; to: ${px.toFixed(3)} ${ty} ${pz.toFixed(3)}; dur:${Math.round(dur)}; dir:alternate; loop:true; easing:easeInOutSine`);
+    const ty=(py+0.6).toFixed(3), dur=900+Math.random()*900;
+    e.setAttribute('animation__rise', `property: position; to: ${px.toFixed(3)} ${ty} ${pz.toFixed(3)}; dur:${Math.round(dur)}; dir:alternate; loop:true; easing:easeInOutSine`);
     root.appendChild(e);
   }
 }
-
 function animateLight(){ const light=document.getElementById('pulseLight'); light.setAttribute('animation','property:intensity; to:1.1; dur:1200; dir:alternate; loop:true; easing:easeInOutSine'); }
 
-// ---------- INTERAZIONI ----------
+// ---------- setupInteractions (video/image + items + audio) ----------
+const playingAudios = {};
+let demoAnimTimeoutId = null;
+
 function setupInteractions(){
   const audioMap = { 'Fantacalcio':'fantacalcio.mp3', 'Dj':'dj.mp3' };
   const linkMap = {
@@ -169,62 +215,160 @@ function setupInteractions(){
     'Ballerino':'https://youtu.be/JS_BY3LRBqw'
   };
 
-  preserveVideoAspect();
+  preserveVideoAspect(); // mantiene scale di demoVideo
 
-  qr.addEventListener('click', async()=>{
-    qr.setAttribute('visible',false); demoVideo.setAttribute('visible',true);
-    try{ holoVideo.volume=1.0; await holoVideo.play(); bgSavedTime=bgMusic.currentTime; bgMusic.pause(); }catch(e){ videoTapOverlay.style.display='flex'; }
+  // QR click: differenziato iOS / Android
+  qr.addEventListener('click', async () => {
+    if (isIOS()) {
+      // iOS: mostra webp/gif + riproduci demo-audio.mp3
+      qr.setAttribute('visible', false);
+      demoVideo.setAttribute('visible', false);
+      replayLogo.setAttribute('visible', false); whatsappLogo.setAttribute('visible', false);
+      replayLogo.classList.remove('clickable'); whatsappLogo.classList.remove('clickable');
+
+      supportsWebPAnimated(async (webpOk) => {
+        const src = webpOk ? demoWebpSrc : demoGifSrc;
+        setHoloImageScaleToDemoVideo();
+        holoImage.setAttribute('src', src + '?_cb=' + Date.now());
+        holoImage.setAttribute('visible', true);
+
+        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+
+        // start audio (user gesture present => iOS allows play)
+        try {
+          createDemoAudio();
+          if (demoAudio) await demoAudio.play().catch(()=>{});
+        } catch(e){}
+
+        // clear prev timeout
+        if (demoAnimTimeoutId) { clearTimeout(demoAnimTimeoutId); demoAnimTimeoutId = null; }
+
+        // use fixed duration (28s) + small margin
+        demoAnimTimeoutId = setTimeout(()=> {
+          try { if (demoAudio) { demoAudio.pause(); demoAudio.currentTime = 0; } } catch(e){}
+          holoImage.setAttribute('visible', false); holoImage.setAttribute('src','');
+          replayLogo.setAttribute('visible', true); whatsappLogo.setAttribute('visible', true);
+          replayLogo.classList.add('clickable'); whatsappLogo.classList.add('clickable');
+          try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
+        }, DEMO_DURATION_MS + 200);
+      });
+
+      return;
+    }
+
+    // Android / desktop: prova a far partire il video mp4
+    qr.setAttribute('visible', false);
+    demoVideo.setAttribute('visible', true);
+    try { holoVideo.volume = 1.0; await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch (e) { videoTapOverlay.style.display = 'flex'; }
   });
 
-  tapToPlay && tapToPlay.addEventListener('click', async()=>{
-    videoTapOverlay.style.display='none';
-    try{ holoVideo.volume=1.0; await holoVideo.play(); bgSavedTime=bgMusic.currentTime; bgMusic.pause(); }catch(e){ alert('Impossibile avviare il video'); }
+  // tap-to-play overlay for cases when autoplay blocked
+  tapToPlay && tapToPlay.addEventListener('click', async () => {
+    videoTapOverlay.style.display = 'none';
+    try { holoVideo.volume = 1.0; await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ alert('Impossibile avviare il video'); }
   });
 
-  holoVideo.addEventListener('ended', ()=>{
-    demoVideo.setAttribute('visible',false);
-    replayLogo.setAttribute('visible',true); whatsappLogo.setAttribute('visible',true);
+  // when mp4 ends (Android/desktop) show logos
+  holoVideo.addEventListener('ended', () => {
+    demoVideo.setAttribute('visible', false);
+    replayLogo.setAttribute('visible', true); whatsappLogo.setAttribute('visible', true);
     replayLogo.classList.add('clickable'); whatsappLogo.classList.add('clickable');
-    try{ bgMusic.currentTime=bgSavedTime||0; bgMusic.play(); }catch(e){}
+    try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
   });
 
-  replayLogo.addEventListener('click', async()=>{
-    if(!replayLogo.getAttribute('visible')) return;
-    replayLogo.setAttribute('visible',false); whatsappLogo.setAttribute('visible',false);
+  // replay behavior: restart mp4 or webp+audio depending on platform
+  replayLogo.addEventListener('click', async () => {
+    if (!replayLogo.getAttribute('visible')) return;
+
+    replayLogo.setAttribute('visible', false); whatsappLogo.setAttribute('visible', false);
     replayLogo.classList.remove('clickable'); whatsappLogo.classList.remove('clickable');
-    demoVideo.setAttribute('visible',true);
-    try{ holoVideo.volume=1.0; await holoVideo.play(); bgSavedTime=bgMusic.currentTime; bgMusic.pause(); }catch(e){ videoTapOverlay.style.display='flex'; }
+
+    // clear previous timeout
+    if (demoAnimTimeoutId) { clearTimeout(demoAnimTimeoutId); demoAnimTimeoutId = null; }
+
+    if (isIOS()) {
+      supportsWebPAnimated(async (webpOk) => {
+        const src = webpOk ? demoWebpSrc : demoGifSrc;
+        setHoloImageScaleToDemoVideo();
+        holoImage.setAttribute('src', src + '?_cb=' + Date.now());
+        holoImage.setAttribute('visible', true);
+        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+        try { createDemoAudio(); if (demoAudio) await demoAudio.play().catch(()=>{}); } catch(e){}
+        demoAnimTimeoutId = setTimeout(()=> {
+          try { if (demoAudio) { demoAudio.pause(); demoAudio.currentTime = 0; } } catch(e){}
+          holoImage.setAttribute('visible', false); holoImage.setAttribute('src','');
+          replayLogo.setAttribute('visible', true); whatsappLogo.setAttribute('visible', true);
+          replayLogo.classList.add('clickable'); whatsappLogo.classList.add('clickable');
+          try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
+        }, DEMO_DURATION_MS + 200);
+      });
+      return;
+    }
+
+    // Android/desktop: restart mp4
+    demoVideo.setAttribute('visible', true);
+    try { holoVideo.currentTime = 0; holoVideo.volume = 1.0; await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ videoTapOverlay.style.display = 'flex'; }
   });
 
-  // AGGIORNATO: link al canale WhatsApp
-  whatsappLogo.addEventListener('click', ()=>{ window.open('https://whatsapp.com/channel/0029VbCDIZCJUM2SokRjrw2W','_blank'); });
+  // whatsapp link opens channel
+  whatsappLogo.addEventListener('click', ()=> {
+    window.open('https://whatsapp.com/channel/0029VbCDIZCJUM2SokRjrw2W', '_blank');
+  });
 
+  // items interactions
   itemIds.forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
-    el.addEventListener('click',()=>{
-      if(linkMap[id]){ window.open(linkMap[id],'_blank'); return; }
-      if(audioMap[id]){
-        if(playingAudios[id]) return; // già in riproduzione
-        try{ bgSavedTime=bgMusic.currentTime; bgMusic.pause(); }catch(e){}
-        const a=new Audio(audioMap[id]); playingAudios[id]=a;
-        const p=a.play(); if(p && p.then) p.catch(()=>{ playingAudios[id]=null; try{ bgMusic.play(); }catch(e){} });
-        a.addEventListener('ended',()=>{ playingAudios[id]=null; try{ bgMusic.currentTime=bgSavedTime||0; bgMusic.play(); }catch(e){} });
+    el.addEventListener('click', ()=>{
+      // linkMap evaluated first (Radio opens Spotify without stopping bgMusic)
+      const linkMap = {
+        'DonBosco':'https://www.instagram.com/giovani_animatori_trecastagni/',
+        'EtnaEnsemble':'https://www.instagram.com/etnaensemble/',
+        'Catania':'https://www.instagram.com/officialcataniafc/',
+        'Eduverse':'https://www.instagram.com/eduverse___/',
+        'Radio':'https://open.spotify.com/intl-it/track/3nhAgjyrfUUCNDMZHx6LCa?si=043e9baf88924a82',
+        'Tromba':'https://youtu.be/AMK10N6wwHM',
+        'Ballerino':'https://youtu.be/JS_BY3LRBqw'
+      };
+      const audioMap = { 'Fantacalcio':'fantacalcio.mp3', 'Dj':'dj.mp3' };
+
+      if (linkMap[id]) { window.open(linkMap[id], '_blank'); return; }
+      if (audioMap[id]) {
+        if (playingAudios[id]) return; // già in riproduzione
+        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+        const a = new Audio(audioMap[id]); playingAudios[id] = a;
+        const p = a.play();
+        if (p && p.then) p.catch(()=>{ playingAudios[id]=null; try{ bgMusic.play(); }catch(e){} });
+        a.addEventListener('ended', ()=>{ playingAudios[id]=null; try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); }catch(e){} });
         return;
       }
+
       window.open('https://instagram.com','_blank');
     });
   });
 }
 
+// ---------- preserveVideoAspect (copia scale su holoImage) ----------
 function preserveVideoAspect(){
-  const src=holoVideo.querySelector('source') ? holoVideo.querySelector('source').src : holoVideo.src;
-  if(!src) return;
-  const probe=document.createElement('video'); probe.preload='metadata'; probe.src=src; probe.muted=true; probe.playsInline=true;
-  probe.addEventListener('loadedmetadata',()=>{
-    const w=probe.videoWidth,h=probe.videoHeight;
-    if(w && h){ const aspect=w/h, baseH=1.0; const sx=baseH*aspect,sy=baseH; demoVideo.setAttribute('scale',`${sx} ${sy} 1`); }
+  const src = holoVideo.querySelector('source') ? holoVideo.querySelector('source').src : holoVideo.src;
+  if (!src) return;
+  const probe = document.createElement('video'); probe.preload='metadata'; probe.src = src; probe.muted = true; probe.playsInline = true;
+  probe.addEventListener('loadedmetadata', ()=> {
+    const w = probe.videoWidth, h = probe.videoHeight;
+    if (w && h) {
+      const aspect = w/h, baseH = 1.0; const sx = baseH * aspect, sy = baseH;
+      demoVideo.setAttribute('scale', `${sx} ${sy} 1`);
+      // immediately copy to holoImage so image appears matching
+      setTimeout(()=> setHoloImageScaleToDemoVideo(), 40);
+    }
   });
   probe.load();
 }
 
-window.addEventListener('beforeunload',()=>{ try{ bgMusic.pause(); }catch(e){} try{ holoVideo.pause(); }catch(e){} });
+// ---------- cleanup ----------
+window.addEventListener('beforeunload', ()=> {
+  try { bgMusic.pause(); } catch(e){}
+  try { holoVideo.pause(); } catch(e){}
+  try { if (demoAudio) { demoAudio.pause(); demoAudio = null; } } catch(e){}
+});
+
+// Inizializza interactions all'avvio (startBtn click inserisce setupInteractions)
