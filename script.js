@@ -1,14 +1,14 @@
-// ---------- script.js completo: WebP/GIF + mp3 per iOS + tutte le funzionalità ----------
+// ---------- script.js aggiornato: texture updater per animazioni su a-image (fix iOS stuck) ----------
 
 // ---------- Config e Variabili DOM ----------
-const DEMO_DURATION_MS = 28000; // il video dura 28 secondi
+const DEMO_DURATION_MS = 28000; // durata fissa 28 secondi
 const startBtn = document.getElementById('startBtn');
 const startOverlay = document.getElementById('startOverlay');
 const bgMusic = document.getElementById('bgMusic');
 const cameraStreamEl = document.getElementById('cameraStream');
 const holoVideo = document.getElementById('holoVideo'); // mp4 <video>
 const demoVideo = document.getElementById('demoVideo'); // a-video entity
-const holoImage = document.getElementById('holoImage'); // a-image for webp/gif (added)
+const holoImage = document.getElementById('holoImage'); // a-image for webp/gif
 const videoTapOverlay = document.getElementById('videoTapOverlay');
 const tapToPlay = document.getElementById('tapToPlay');
 const qr = document.getElementById('qrCode');
@@ -27,6 +27,37 @@ const demoAudioSrc = 'demo-audio.mp3';
 // Assicura volume alto per video su Android/desktop
 try { holoVideo.volume = 1.0; } catch(e){}
 
+// ---------- Texture updater per animazioni su a-image (fix iOS / webp/gif stuck) ----------
+const _textureUpdaters = new Map(); // a-image element -> intervalId
+
+function startTextureUpdater(aImageEl, fps = 20) {
+  if (!aImageEl) return;
+  stopTextureUpdater(aImageEl); // assicurati di non duplicare
+  const intervalMs = Math.max(8, Math.round(1000 / fps));
+  const id = setInterval(() => {
+    try {
+      const mesh = aImageEl.getObject3D && aImageEl.getObject3D('mesh');
+      if (mesh && mesh.material) {
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach(m => { if (m && m.map) m.map.needsUpdate = true; });
+        } else {
+          if (mesh.material.map) mesh.material.map.needsUpdate = true;
+        }
+      }
+    } catch (e) { /* ignore occasional errors */ }
+  }, intervalMs);
+  _textureUpdaters.set(aImageEl, id);
+}
+
+function stopTextureUpdater(aImageEl) {
+  if (!aImageEl) return;
+  const id = _textureUpdaters.get(aImageEl);
+  if (id) {
+    clearInterval(id);
+    _textureUpdaters.delete(aImageEl);
+  }
+}
+
 // ---------- Helper: rilevamento iOS ----------
 function isIOS() {
   const ua = navigator.userAgent || navigator.vendor || window.opera;
@@ -35,7 +66,7 @@ function isIOS() {
   return false;
 }
 
-// Test minimale support webp (animated)
+// Test support webp minimale
 function supportsWebPAnimated(callback) {
   const img = new Image();
   img.onload = () => callback(true);
@@ -43,7 +74,7 @@ function supportsWebPAnimated(callback) {
   img.src = demoWebpSrc + '?_v=1';
 }
 
-// ---------- face-camera component (Y-only) ----------
+// ---------- face-camera component (unchanged) ----------
 AFRAME.registerComponent('face-camera', {
   schema: { mode: { type: 'string', default: 'y' }, flip: { type: 'boolean', default: false }, lockX: { type: 'boolean', default: true }, lockZ: { type: 'boolean', default: true } },
   init: function () {
@@ -99,6 +130,7 @@ function hideHoloImage() {
   try {
     holoImage.setAttribute('visible', false);
     holoImage.setAttribute('src', '');
+    stopTextureUpdater(holoImage);
   } catch(e){}
 }
 
@@ -111,7 +143,7 @@ function createDemoAudio() {
   return demoAudio;
 }
 
-// ---------- MAIN: avvio esperienza ----------
+// ---------- MAIN: avvio esperienza (invariato) ----------
 startBtn.addEventListener('click', async () => {
   try { await bgMusic.play(); } catch(e) {}
   startOverlay.style.display = 'none';
@@ -135,7 +167,7 @@ startBtn.addEventListener('click', async () => {
   });
 });
 
-// ---------- CAMERA (stessa logica di prima) ----------
+// ---------- CAMERA / PARTICLES / ITEMS (mantiene il codice che già hai) ----------
 async function startCameraWithRetries(){
   cameraStreamEl.setAttribute('playsinline',''); cameraStreamEl.setAttribute('webkit-playsinline','');
   cameraStreamEl.setAttribute('autoplay',''); cameraStreamEl.setAttribute('muted',''); cameraStreamEl.setAttribute('crossorigin','anonymous');
@@ -152,7 +184,6 @@ async function startCameraWithRetries(){
   document.getElementById('cameraSky').setAttribute('material','shader: flat; src: #cameraStream');
   forceSkyTextureUpdate(document.getElementById('cameraSky'),1400,80);
 }
-
 function forceSkyTextureUpdate(skyEl,d=1400,i=80){
   const start=Date.now(); const tid=setInterval(()=>{ try{ const mesh=skyEl.getObject3D('mesh'); if(mesh&&mesh.material&&mesh.material.map){ mesh.material.map.needsUpdate=true; mesh.material.needsUpdate=true; } }catch(e){} if(Date.now()-start>d) clearInterval(tid); }, i);
 }
@@ -166,7 +197,7 @@ function distributeItemsCircle(radius=2.0, height=2.2){
     const x=radius*Math.cos(angle), z=radius*Math.sin(angle), y=height;
     el.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
     el.setAttribute('scale','0.95 0.95 0.95'); el.classList.add('clickable');
-    const amp=0.08+Math.random()*0.04, dur=800+Math.random()*600; // più veloce
+    const amp=0.08+Math.random()*0.04, dur=800+Math.random()*600;
     el.setAttribute('animation__float', `property: position; to: ${x.toFixed(3)} ${(y+amp).toFixed(3)} ${z.toFixed(3)}; dur:${dur}; dir:alternate; loop:true; easing:easeInOutSine`);
   });
 }
@@ -199,7 +230,7 @@ function createSmoke(count=20){
 }
 function animateLight(){ const light=document.getElementById('pulseLight'); light.setAttribute('animation','property:intensity; to:1.1; dur:1200; dir:alternate; loop:true; easing:easeInOutSine'); }
 
-// ---------- setupInteractions (video/image + items + audio) ----------
+// ---------- setupInteractions (migliorato caricamento immagine + texture updater) ----------
 const playingAudios = {};
 let demoAnimTimeoutId = null;
 
@@ -215,60 +246,99 @@ function setupInteractions(){
     'Ballerino':'https://youtu.be/JS_BY3LRBqw'
   };
 
-  preserveVideoAspect(); // mantiene scale di demoVideo
+  preserveVideoAspect();
 
-  // QR click: differenziato iOS / Android
+  // Helper interno: avvia immagine animata + audio con gestione robusta del caricamento
+  async function playAnimatedImageWithAudio(src) {
+    // pulisci eventuali precedenti
+    if (demoAnimTimeoutId) { clearTimeout(demoAnimTimeoutId); demoAnimTimeoutId = null; }
+    try { holoImage.setAttribute('src', ''); holoImage.setAttribute('visible', false); stopTextureUpdater(holoImage); } catch(e){}
+
+    // copia scale/pos
+    setHoloImageScaleToDemoVideo();
+
+    // crea audio
+    try { createDemoAudio(); } catch(e){}
+
+    // crea un object Image per test onload/onerror
+    const testImg = new Image();
+    let loaded = false;
+
+    testImg.onload = async function() {
+      loaded = true;
+      // set the a-image src (cache-bust already applied by caller)
+      holoImage.setAttribute('src', src);
+      holoImage.setAttribute('visible', true);
+
+      // start texture updater so three.js updates frames
+      startTextureUpdater(holoImage, 20); // 20 fps default
+
+      // pausa bgMusic e salva punto
+      try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
+
+      // proviamo a far partire l'audio (user gesture presente)
+      try { if (demoAudio) await demoAudio.play().catch(()=>{}); } catch(e){}
+
+      // start timeout basato su DEMO_DURATION_MS (inizia ora che l'immagine è pronta)
+      demoAnimTimeoutId = setTimeout(() => {
+        // stop audio
+        try { if (demoAudio) { demoAudio.pause(); demoAudio.currentTime = 0; } } catch(e){}
+        // hide image and stop updater
+        try { holoImage.setAttribute('visible', false); holoImage.setAttribute('src',''); stopTextureUpdater(holoImage); } catch(e){}
+        // show logos e resume bgMusic
+        try {
+          replayLogo.setAttribute('visible', true);
+          whatsappLogo.setAttribute('visible', true);
+          replayLogo.classList.add('clickable'); whatsappLogo.classList.add('clickable');
+        } catch(e){}
+        try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
+      }, DEMO_DURATION_MS + 200);
+    };
+
+    testImg.onerror = function() {
+      // se l'immagine non carica, non blocchiamo l'esperienza: mostriamo subito i loghi
+      try { stopTextureUpdater(holoImage); } catch(e){}
+      try { holoImage.setAttribute('visible', false); holoImage.setAttribute('src',''); } catch(e){}
+      try {
+        replayLogo.setAttribute('visible', true);
+        whatsappLogo.setAttribute('visible', true);
+        replayLogo.classList.add('clickable'); whatsappLogo.classList.add('clickable');
+      } catch(e){}
+      try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
+    };
+
+    // avvia il caricamento del test image (cache-bust per replay gestito dal caller)
+    testImg.src = src;
+  }
+
+  // QR click
   qr.addEventListener('click', async () => {
     if (isIOS()) {
-      // iOS: mostra webp/gif + riproduci demo-audio.mp3
       qr.setAttribute('visible', false);
       demoVideo.setAttribute('visible', false);
       replayLogo.setAttribute('visible', false); whatsappLogo.setAttribute('visible', false);
       replayLogo.classList.remove('clickable'); whatsappLogo.classList.remove('clickable');
 
-      supportsWebPAnimated(async (webpOk) => {
-        const src = webpOk ? demoWebpSrc : demoGifSrc;
-        setHoloImageScaleToDemoVideo();
-        holoImage.setAttribute('src', src + '?_cb=' + Date.now());
-        holoImage.setAttribute('visible', true);
-
-        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-
-        // start audio (user gesture present => iOS allows play)
-        try {
-          createDemoAudio();
-          if (demoAudio) await demoAudio.play().catch(()=>{});
-        } catch(e){}
-
-        // clear prev timeout
-        if (demoAnimTimeoutId) { clearTimeout(demoAnimTimeoutId); demoAnimTimeoutId = null; }
-
-        // use fixed duration (28s) + small margin
-        demoAnimTimeoutId = setTimeout(()=> {
-          try { if (demoAudio) { demoAudio.pause(); demoAudio.currentTime = 0; } } catch(e){}
-          holoImage.setAttribute('visible', false); holoImage.setAttribute('src','');
-          replayLogo.setAttribute('visible', true); whatsappLogo.setAttribute('visible', true);
-          replayLogo.classList.add('clickable'); whatsappLogo.classList.add('clickable');
-          try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
-        }, DEMO_DURATION_MS + 200);
+      supportsWebPAnimated((webpOk) => {
+        const src = (webpOk ? demoWebpSrc : demoGifSrc) + '?_cb=' + Date.now();
+        playAnimatedImageWithAudio(src);
       });
-
       return;
     }
 
-    // Android / desktop: prova a far partire il video mp4
+    // Android/desktop flow (unchanged)
     qr.setAttribute('visible', false);
     demoVideo.setAttribute('visible', true);
     try { holoVideo.volume = 1.0; await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch (e) { videoTapOverlay.style.display = 'flex'; }
   });
 
-  // tap-to-play overlay for cases when autoplay blocked
+  // tapToPlay overlay (unchanged)
   tapToPlay && tapToPlay.addEventListener('click', async () => {
     videoTapOverlay.style.display = 'none';
     try { holoVideo.volume = 1.0; await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ alert('Impossibile avviare il video'); }
   });
 
-  // when mp4 ends (Android/desktop) show logos
+  // when mp4 ends (Android/desktop) show logos (unchanged)
   holoVideo.addEventListener('ended', () => {
     demoVideo.setAttribute('visible', false);
     replayLogo.setAttribute('visible', true); whatsappLogo.setAttribute('visible', true);
@@ -280,27 +350,17 @@ function setupInteractions(){
   replayLogo.addEventListener('click', async () => {
     if (!replayLogo.getAttribute('visible')) return;
 
+    // nascondi loghi
     replayLogo.setAttribute('visible', false); whatsappLogo.setAttribute('visible', false);
     replayLogo.classList.remove('clickable'); whatsappLogo.classList.remove('clickable');
 
-    // clear previous timeout
+    // clear prev timeout
     if (demoAnimTimeoutId) { clearTimeout(demoAnimTimeoutId); demoAnimTimeoutId = null; }
 
     if (isIOS()) {
-      supportsWebPAnimated(async (webpOk) => {
-        const src = webpOk ? demoWebpSrc : demoGifSrc;
-        setHoloImageScaleToDemoVideo();
-        holoImage.setAttribute('src', src + '?_cb=' + Date.now());
-        holoImage.setAttribute('visible', true);
-        try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
-        try { createDemoAudio(); if (demoAudio) await demoAudio.play().catch(()=>{}); } catch(e){}
-        demoAnimTimeoutId = setTimeout(()=> {
-          try { if (demoAudio) { demoAudio.pause(); demoAudio.currentTime = 0; } } catch(e){}
-          holoImage.setAttribute('visible', false); holoImage.setAttribute('src','');
-          replayLogo.setAttribute('visible', true); whatsappLogo.setAttribute('visible', true);
-          replayLogo.classList.add('clickable'); whatsappLogo.classList.add('clickable');
-          try { bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); } catch(e){}
-        }, DEMO_DURATION_MS + 200);
+      supportsWebPAnimated((webpOk) => {
+        const src = (webpOk ? demoWebpSrc : demoGifSrc) + '?_cb=' + Date.now();
+        playAnimatedImageWithAudio(src);
       });
       return;
     }
@@ -310,16 +370,15 @@ function setupInteractions(){
     try { holoVideo.currentTime = 0; holoVideo.volume = 1.0; await holoVideo.play(); bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){ videoTapOverlay.style.display = 'flex'; }
   });
 
-  // whatsapp link opens channel
+  // whatsapp link
   whatsappLogo.addEventListener('click', ()=> {
     window.open('https://whatsapp.com/channel/0029VbCDIZCJUM2SokRjrw2W', '_blank');
   });
 
-  // items interactions
+  // items interactions (unchanged)
   itemIds.forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     el.addEventListener('click', ()=>{
-      // linkMap evaluated first (Radio opens Spotify without stopping bgMusic)
       const linkMap = {
         'DonBosco':'https://www.instagram.com/giovani_animatori_trecastagni/',
         'EtnaEnsemble':'https://www.instagram.com/etnaensemble/',
@@ -333,7 +392,7 @@ function setupInteractions(){
 
       if (linkMap[id]) { window.open(linkMap[id], '_blank'); return; }
       if (audioMap[id]) {
-        if (playingAudios[id]) return; // già in riproduzione
+        if (playingAudios[id]) return;
         try { bgSavedTime = bgMusic.currentTime; bgMusic.pause(); } catch(e){}
         const a = new Audio(audioMap[id]); playingAudios[id] = a;
         const p = a.play();
@@ -341,7 +400,6 @@ function setupInteractions(){
         a.addEventListener('ended', ()=>{ playingAudios[id]=null; try{ bgMusic.currentTime = bgSavedTime || 0; bgMusic.play(); }catch(e){} });
         return;
       }
-
       window.open('https://instagram.com','_blank');
     });
   });
@@ -371,4 +429,4 @@ window.addEventListener('beforeunload', ()=> {
   try { if (demoAudio) { demoAudio.pause(); demoAudio = null; } } catch(e){}
 });
 
-// Inizializza interactions all'avvio (startBtn click inserisce setupInteractions)
+// NOTA: setupInteractions verrà chiamato nel flusso di avvio (startBtn)
